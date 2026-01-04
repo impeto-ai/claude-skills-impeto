@@ -235,8 +235,19 @@ if echo "$prompt_lower" | grep -qE '\bprompt\b|system.?message|schema.?output|in
     exit 0
 fi
 
-# AGENT-OBSERVABILITY
-if echo "$prompt_lower" | grep -qE 'observability|tracing|monitoring|\blogs\b|metrics|\beval\b|langfuse|logfire'; then
+# AGENT-TRACING-LANGFUSE (Specific Langfuse tracing implementation)
+if echo "$prompt_lower" | grep -qE '\blangfuse\b|instrument.?all|@observe|\btrace.?span|propagate.?attributes|tracing.?agent|implementar.?tracing'; then
+    jq -n '{
+      "hookSpecificOutput": {
+        "hookEventName": "UserPromptSubmit",
+        "additionalContext": "<skill-instruction>\nACTIVATE SKILL: agent-tracing-langfuse\nREAD: .claude/skills/agent-tracing-langfuse/SKILL.md\nFOLLOW: Implement production-grade Langfuse tracing for Pydantic AI agents\nCHAIN: After tracing → agent-audit-graph\nOUTPUT: ⚡ SKILL_ACTIVATED: #TRAC-7K4M\n</skill-instruction>"
+      }
+    }'
+    exit 0
+fi
+
+# AGENT-OBSERVABILITY (General observability concepts)
+if echo "$prompt_lower" | grep -qE 'observability|monitoring|\blogs\b|metrics|\beval\b|logfire|5.?pillar'; then
     jq -n '{
       "hookSpecificOutput": {
         "hookEventName": "UserPromptSubmit",

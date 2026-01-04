@@ -1,6 +1,6 @@
 # ImpetOS Skills
 
-Skills para Claude Code com hooks de auto-ativação.
+Skills para Claude Code com hooks de auto-ativação. **45 skills em 6 tiers.**
 
 ## Filosofia
 
@@ -60,7 +60,8 @@ Pronto! O script:
 | `tool-specialist` | "tool", "function call" | Create agent tools | - |
 | `agent-state-machine` | "state", "persistence", "checkpoint" | Durable state patterns | - |
 | `agent-prompt-engineer` | "prompt", "system message" | Craft effective prompts | - |
-| `agent-observability` | "observability", "tracing", "eval" | 5 pillars of observability | - |
+| `agent-tracing-langfuse` | "langfuse", "tracing", "@observe" | **Langfuse tracing** for Pydantic AI | → audit |
+| `agent-observability` | "observability", "monitoring", "eval" | 5 pillars of observability | - |
 | `agent-resilience` | "resilience", "retry", "fallback" | Fault tolerance patterns | - |
 | `agent-multi-pattern` | "multi-agent", "supervisor", "swarm" | Multi-agent architectures | - |
 
@@ -72,16 +73,20 @@ brainstorming-agents (WebSearch research)
        ▼
 graph-agent (creates/modifies agent)
        │
-       ▼
-agent-audit-graph (validates with context7)
-       │
-   ┌───┴───┐
-   ▼       ▼
-PASS    FAIL
-   │       │
-   ▼       ▼
-agent-  /.debts/graph-agent/
-tester  (debt documentation)
+       ├────────────────────────────────┐
+       ▼                                ▼
+agent-tracing-langfuse          agent-audit-graph
+(implements Langfuse)           (validates with context7)
+       │                                │
+       └────────────┬───────────────────┘
+                    │
+                ┌───┴───┐
+                ▼       ▼
+              PASS    FAIL
+                │       │
+                ▼       ▼
+           agent-   /.debts/graph-agent/
+           tester   (debt documentation)
 ```
 
 ### TIER 5 - Development & DevOps
@@ -167,6 +172,7 @@ claude-skills-impeto/
 │   ├── tool-specialist/
 │   ├── agent-state-machine/
 │   ├── agent-prompt-engineer/
+│   ├── agent-tracing-langfuse/        # NEW: Langfuse tracing
 │   ├── agent-observability/
 │   ├── agent-resilience/
 │   ├── agent-multi-pattern/
@@ -191,7 +197,7 @@ claude-skills-impeto/
 │   ├── scope-guardian/
 │   ├── retrospective/
 │   ├── business-metrics/
-│   └── ai-product-strategy/        # 44 skills total
+│   └── ai-product-strategy/        # 45 skills total
 └── README.md
 ```
 
@@ -266,6 +272,7 @@ Exemplos:
 - #BRBS-2M7P (brainstorming-business)
 - #PRIC-4N8Q (pricing-strategy)
 - #DISC-7Q3R (client-discovery)
+- #TRAC-7K4M (agent-tracing-langfuse)
 ```
 
 ## Foco: AI Agents + Business

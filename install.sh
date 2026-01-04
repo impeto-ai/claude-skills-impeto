@@ -22,7 +22,7 @@ TMP_DIR=$(mktemp -d)
 git clone --depth 1 "$REPO" "$TMP_DIR" 2>/dev/null
 
 # Copia skills e hooks
-echo "📦 Instalando 44 skills..."
+echo "📦 Instalando 45 skills..."
 cp -r "$TMP_DIR/skills" "$CLAUDE_DIR/"
 cp -r "$TMP_DIR/hooks" "$CLAUDE_DIR/"
 
@@ -74,11 +74,11 @@ chmod +x "$CLAUDE_DIR/hooks/skill-activator.sh"
 echo ""
 echo "✅ ImpetOS Skills instalado com sucesso!"
 echo ""
-echo "📊 44 skills em 6 tiers:"
+echo "📊 45 skills em 6 tiers:"
 echo "   TIER 1: Core Development (5)"
 echo "   TIER 2: Collaboration (4)"
 echo "   TIER 3: Git/DevOps (3)"
-echo "   TIER 4: AI Agents (10)"
+echo "   TIER 4: AI Agents (11)  ← NEW: agent-tracing-langfuse"
 echo "   TIER 5: Development (11)"
 echo "   TIER 6: Business (11)"
 echo ""
