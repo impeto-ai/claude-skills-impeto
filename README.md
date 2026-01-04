@@ -11,10 +11,14 @@ Toda skill é registrada em `skill-activator.sh` para ativação automática gar
 ## Instalação
 
 ```bash
-# Via marketplace
-/plugin marketplace add impetos/claude-skills-impeto
-/plugin install impetos-skills@claude-skills-impeto
+# Na raiz do seu projeto, rode:
+curl -fsSL https://raw.githubusercontent.com/impeto-ai/claude-skills-impeto/main/install.sh | bash
 ```
+
+Pronto! O script:
+1. Baixa as 44 skills
+2. Configura o hook automaticamente
+3. Não precisa fazer mais nada
 
 ## Skills Incluídas
 
