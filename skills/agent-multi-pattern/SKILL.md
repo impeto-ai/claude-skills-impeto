@@ -1,403 +1,641 @@
 ---
 name: agent-multi-pattern
-description: Use when building multi-agent systems. Activates for "multi-agent", "supervisor", "swarm", "routing", "orchestrator", "agents coordination".
+description: Use when building multi-agent systems with pydantic-graph. Activates for "multi-agent", "supervisor", "swarm", "routing", "orchestrator", "agents coordination".
 ---
 
-# Agent Multi-Pattern
+# Agent Multi-Pattern (Graph-Specialized)
 
-Expert in multi-agent architectures: supervisor, swarm, routing, and orchestration patterns.
+Expert in multi-agent architectures using **Pydantic Graph**: supervisor, swarm, routing, and orchestration patterns with graph nodes.
 
 ## When to Use
 
-- Building systems with multiple agents
-- Implementing agent coordination
-- Designing agent hierarchies
+- Building systems with multiple agents as graph nodes
+- Implementing agent coordination through state
+- Designing agent hierarchies with node transitions
 - User says: multi-agent, supervisor, swarm, routing
-- NOT when: single agent (use graph-agent)
+- NOT when: single agent workflow (use graph-agent)
 
-## Multi-Agent Patterns
+## Multi-Agent Patterns in Pydantic Graph
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                    MULTI-AGENT PATTERNS                         │
+│              MULTI-AGENT GRAPH PATTERNS                         │
 ├─────────────────────────────────────────────────────────────────┤
 │                                                                 │
-│   1. SUPERVISOR  → One boss, many workers                       │
-│   2. SWARM       → Peer-to-peer collaboration                   │
-│   3. ROUTER      → Dynamic dispatch                             │
-│   4. PIPELINE    → Sequential processing                        │
-│   5. HIERARCHY   → Nested supervisors                           │
+│   1. SUPERVISOR  → One orchestrator node, worker nodes          │
+│   2. SWARM       → Agents as nodes, state-based handoff         │
+│   3. ROUTER      → Classification node → specialized nodes      │
+│   4. PIPELINE    → Sequential agent nodes                       │
+│   5. DEBATE      → Pro/Con nodes with judge node                │
 │                                                                 │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
-## Pattern 1: Supervisor
+## Pattern 1: Supervisor Graph
 
 ```
-         ┌─────────────┐
-         │ SUPERVISOR  │
-         │   (GPT-4)   │
-         └──────┬──────┘
-                │
-    ┌───────────┼───────────┐
-    ▼           ▼           ▼
-┌───────┐  ┌───────┐  ┌───────┐
-│ Agent │  │ Agent │  │ Agent │
-│   A   │  │   B   │  │   C   │
-└───────┘  └───────┘  └───────┘
+         ┌───────────────┐
+         │SupervisorNode │
+         │  (decides)    │
+         └───────┬───────┘
+                 │
+    ┌────────────┼────────────┐
+    ▼            ▼            ▼
+┌────────┐  ┌────────┐  ┌────────┐
+│Research│  │ Coder  │  │Reviewer│
+│  Node  │  │  Node  │  │  Node  │
+└────┬───┘  └────┬───┘  └────┬───┘
+     └───────────┴───────────┘
+                 │
+         ┌───────▼───────┐
+         │SynthesisNode  │
+         │  (combines)   │
+         └───────────────┘
 ```
 
-### Pydantic AI Implementation
+### Pydantic Graph Implementation
 
 ```python
-from pydantic_ai import Agent
+from dataclasses import dataclass, field
 from pydantic import BaseModel
+from pydantic_ai import Agent
+from pydantic_graph import BaseNode, End, Graph, GraphRunContext
 
-class TaskAssignment(BaseModel):
-    """Supervisor's decision on task assignment."""
-    agent: str  # "research", "code", "review"
+# Shared state for all agents
+@dataclass
+class SupervisorState:
+    query: str = ""
+    assignments: list[str] = field(default_factory=list)
+    agent_outputs: dict[str, str] = field(default_factory=dict)
+    final_result: str = ""
+
+# Output schema for supervisor decisions
+class SupervisorDecision(BaseModel):
+    next_agent: str  # "research", "coder", "reviewer", "synthesize"
     task: str
-    context: dict
-
-class SupervisorResult(BaseModel):
-    """Final aggregated result."""
-    summary: str
-    agent_outputs: dict[str, str]
-    confidence: float
+    reasoning: str
 
 # Specialized agents
 research_agent = Agent(
-    "openai:gpt-4o",
-    system_prompt="You are a research specialist...",
-    tools=[search_web, fetch_url]
+    'anthropic:claude-sonnet-4-20250514',
+    output_type=str,
+    system_prompt="You are a research specialist. Gather information.",
+    instrument=True
 )
 
-code_agent = Agent(
-    "openai:gpt-4o",
-    system_prompt="You are a coding specialist...",
-    tools=[read_file, write_file, run_code]
+coder_agent = Agent(
+    'anthropic:claude-sonnet-4-20250514',
+    output_type=str,
+    system_prompt="You are a coding specialist. Write clean code.",
+    instrument=True
 )
 
-review_agent = Agent(
-    "openai:gpt-4o",
-    system_prompt="You are a code review specialist...",
-    tools=[read_file, analyze_code]
+reviewer_agent = Agent(
+    'anthropic:claude-sonnet-4-20250514',
+    output_type=str,
+    system_prompt="You are a code reviewer. Find issues and suggest fixes.",
+    instrument=True
 )
 
-# Supervisor agent
-supervisor = Agent(
-    "openai:gpt-4o",
+supervisor_agent = Agent(
+    'anthropic:claude-sonnet-4-20250514',
+    output_type=SupervisorDecision,
     system_prompt="""
-    You are a supervisor managing a team:
-    - research_agent: Web research and information gathering
-    - code_agent: Writing and modifying code
-    - review_agent: Code review and quality checks
-
-    Analyze the user's request and delegate to the appropriate agent(s).
-    Coordinate their work and synthesize the final result.
+    You are a supervisor managing: research, coder, reviewer.
+    Decide which agent should work next based on the task and what's been done.
+    When all work is complete, respond with next_agent="synthesize".
     """,
-    output_type=TaskAssignment
+    instrument=True
 )
 
-async def run_supervisor(query: str) -> SupervisorResult:
-    """Run supervisor-coordinated multi-agent system."""
-    outputs = {}
+# Supervisor node - orchestrates the workflow
+@dataclass
+class SupervisorNode(BaseNode[SupervisorState]):
+    async def run(self, ctx: GraphRunContext[SupervisorState]) -> 'ResearchNode | CoderNode | ReviewerNode | SynthesisNode':
+        # Get supervisor decision
+        context = f"""
+        Query: {ctx.state.query}
+        Completed work: {ctx.state.agent_outputs}
+        """
 
-    # Supervisor decides initial task
-    assignment = await supervisor.run(query)
+        result = await supervisor_agent.run(context)
+        decision = result.output
 
-    # Execute with appropriate agent
-    agents = {
-        "research": research_agent,
-        "code": code_agent,
-        "review": review_agent
-    }
+        ctx.state.assignments.append(decision.next_agent)
 
-    agent = agents[assignment.data.agent]
-    result = await agent.run(assignment.data.task)
-    outputs[assignment.data.agent] = result.data
+        match decision.next_agent:
+            case "research": return ResearchNode(task=decision.task)
+            case "coder": return CoderNode(task=decision.task)
+            case "reviewer": return ReviewerNode(task=decision.task)
+            case "synthesize": return SynthesisNode()
+            case _: return SynthesisNode()
 
-    # Supervisor synthesizes
-    synthesis = await supervisor.run(
-        f"Synthesize results: {outputs}",
-        output_type=SupervisorResult
-    )
+# Worker nodes
+@dataclass
+class ResearchNode(BaseNode[SupervisorState]):
+    task: str = ""
 
-    return synthesis.data
+    async def run(self, ctx: GraphRunContext[SupervisorState]) -> 'SupervisorNode':
+        result = await research_agent.run(self.task)
+        ctx.state.agent_outputs["research"] = result.output
+        return SupervisorNode()
+
+@dataclass
+class CoderNode(BaseNode[SupervisorState]):
+    task: str = ""
+
+    async def run(self, ctx: GraphRunContext[SupervisorState]) -> 'SupervisorNode':
+        result = await coder_agent.run(self.task)
+        ctx.state.agent_outputs["coder"] = result.output
+        return SupervisorNode()
+
+@dataclass
+class ReviewerNode(BaseNode[SupervisorState]):
+    task: str = ""
+
+    async def run(self, ctx: GraphRunContext[SupervisorState]) -> 'SupervisorNode':
+        result = await reviewer_agent.run(self.task)
+        ctx.state.agent_outputs["reviewer"] = result.output
+        return SupervisorNode()
+
+@dataclass
+class SynthesisNode(BaseNode[SupervisorState]):
+    async def run(self, ctx: GraphRunContext[SupervisorState]) -> End[str]:
+        synthesis_agent = Agent(
+            'anthropic:claude-sonnet-4-20250514',
+            output_type=str,
+            system_prompt="Synthesize all agent outputs into a final response."
+        )
+
+        result = await synthesis_agent.run(
+            f"Synthesize: {ctx.state.agent_outputs}"
+        )
+        ctx.state.final_result = result.output
+        return End(result.output)
+
+# Run the supervisor graph
+async def run_supervisor_graph(query: str) -> str:
+    state = SupervisorState(query=query)
+    graph = Graph(nodes=[SupervisorNode, ResearchNode, CoderNode, ReviewerNode, SynthesisNode])
+    return await graph.run(SupervisorNode(), state=state)
 ```
 
-## Pattern 2: Swarm
+## Pattern 2: Swarm (Peer-to-Peer Handoff)
 
 ```
-    ┌───────┐     ┌───────┐
-    │ Agent │◄───►│ Agent │
-    │   A   │     │   B   │
-    └───┬───┘     └───┬───┘
-        │             │
-        └──────┬──────┘
-               │
-           ┌───▼───┐
-           │ Agent │
-           │   C   │
-           └───────┘
+    ┌───────────┐     ┌───────────┐
+    │   Alice   │◄───►│    Bob    │
+    │   Node    │     │   Node    │
+    └─────┬─────┘     └─────┬─────┘
+          │                 │
+          └────────┬────────┘
+                   │
+             ┌─────▼─────┐
+             │  Charlie  │
+             │   Node    │
+             └───────────┘
 ```
 
-### LangGraph Swarm Implementation
+### Swarm Implementation
 
 ```python
-from langgraph.graph import StateGraph, START, END
-from langgraph.checkpoint.memory import InMemorySaver
+from dataclasses import dataclass, field
+from pydantic import BaseModel
+from typing import Literal
 
-class SwarmState(BaseModel):
-    """Shared state for swarm agents."""
-    messages: list[dict]
-    current_agent: str
-    completed_agents: set[str]
-    shared_context: dict
+@dataclass
+class SwarmState:
+    topic: str = ""
+    conversation: list[dict] = field(default_factory=list)
+    current_speaker: str = "alice"
+    turns: int = 0
+    max_turns: int = 6
 
-def create_swarm_agent(name: str, system_prompt: str):
-    """Create an agent that can hand off to others."""
+class SwarmResponse(BaseModel):
+    message: str
+    handoff_to: Literal["alice", "bob", "charlie", "done"]
+    reasoning: str
 
-    async def agent_node(state: SwarmState) -> SwarmState:
-        agent = Agent("openai:gpt-4o", system_prompt=system_prompt)
+# Create swarm agents with handoff capability
+alice_agent = Agent(
+    'anthropic:claude-sonnet-4-20250514',
+    output_type=SwarmResponse,
+    system_prompt="""
+    You are Alice, an expert in research and information gathering.
+    Contribute to the conversation and decide who should speak next:
+    - bob: for technical implementation details
+    - charlie: for review and quality checks
+    - done: if the topic is fully addressed
+    """,
+    instrument=True
+)
 
-        # Run agent
-        result = await agent.run(state.messages[-1]["content"])
+bob_agent = Agent(
+    'anthropic:claude-sonnet-4-20250514',
+    output_type=SwarmResponse,
+    system_prompt="""
+    You are Bob, an expert in technical implementation.
+    Contribute to the conversation and decide who should speak next:
+    - alice: for more research/information
+    - charlie: for review and validation
+    - done: if the topic is fully addressed
+    """,
+    instrument=True
+)
 
-        # Decide next agent
-        next_agent = decide_handoff(result, state)
+charlie_agent = Agent(
+    'anthropic:claude-sonnet-4-20250514',
+    output_type=SwarmResponse,
+    system_prompt="""
+    You are Charlie, an expert in review and quality assurance.
+    Contribute to the conversation and decide who should speak next:
+    - alice: if more information needed
+    - bob: if implementation needs work
+    - done: if everything is satisfactory
+    """,
+    instrument=True
+)
 
-        return state.model_copy(update={
-            "messages": [*state.messages, {"role": "assistant", "content": result.data}],
-            "current_agent": next_agent,
-            "completed_agents": state.completed_agents | {name}
-        })
+@dataclass
+class AliceNode(BaseNode[SwarmState]):
+    async def run(self, ctx: GraphRunContext[SwarmState]) -> 'BobNode | CharlieNode | End[str]':
+        context = f"Topic: {ctx.state.topic}\nConversation: {ctx.state.conversation}"
+        result = await alice_agent.run(context)
 
-    return agent_node
+        ctx.state.conversation.append({"speaker": "alice", "message": result.output.message})
+        ctx.state.turns += 1
 
-# Build swarm graph
-builder = StateGraph(SwarmState)
+        if result.output.handoff_to == "done" or ctx.state.turns >= ctx.state.max_turns:
+            return End(self._summarize(ctx.state.conversation))
 
-builder.add_node("alice", create_swarm_agent("alice", "You are Alice, expert in..."))
-builder.add_node("bob", create_swarm_agent("bob", "You are Bob, expert in..."))
-builder.add_node("charlie", create_swarm_agent("charlie", "You are Charlie, expert in..."))
+        match result.output.handoff_to:
+            case "bob": return BobNode()
+            case "charlie": return CharlieNode()
+            case _: return BobNode()
 
-# Dynamic routing
-def route_to_agent(state: SwarmState) -> str:
-    if state.current_agent == "done":
-        return END
-    return state.current_agent
+    def _summarize(self, conversation: list) -> str:
+        return "\n".join(f"{c['speaker']}: {c['message']}" for c in conversation)
 
-builder.add_conditional_edges(START, route_to_agent)
-builder.add_conditional_edges("alice", route_to_agent)
-builder.add_conditional_edges("bob", route_to_agent)
-builder.add_conditional_edges("charlie", route_to_agent)
+@dataclass
+class BobNode(BaseNode[SwarmState]):
+    async def run(self, ctx: GraphRunContext[SwarmState]) -> 'AliceNode | CharlieNode | End[str]':
+        context = f"Topic: {ctx.state.topic}\nConversation: {ctx.state.conversation}"
+        result = await bob_agent.run(context)
 
-swarm = builder.compile(checkpointer=InMemorySaver())
+        ctx.state.conversation.append({"speaker": "bob", "message": result.output.message})
+        ctx.state.turns += 1
+
+        if result.output.handoff_to == "done" or ctx.state.turns >= ctx.state.max_turns:
+            return End(self._summarize(ctx.state.conversation))
+
+        match result.output.handoff_to:
+            case "alice": return AliceNode()
+            case "charlie": return CharlieNode()
+            case _: return CharlieNode()
+
+    def _summarize(self, conversation: list) -> str:
+        return "\n".join(f"{c['speaker']}: {c['message']}" for c in conversation)
+
+@dataclass
+class CharlieNode(BaseNode[SwarmState]):
+    async def run(self, ctx: GraphRunContext[SwarmState]) -> 'AliceNode | BobNode | End[str]':
+        context = f"Topic: {ctx.state.topic}\nConversation: {ctx.state.conversation}"
+        result = await charlie_agent.run(context)
+
+        ctx.state.conversation.append({"speaker": "charlie", "message": result.output.message})
+        ctx.state.turns += 1
+
+        if result.output.handoff_to == "done" or ctx.state.turns >= ctx.state.max_turns:
+            return End(self._summarize(ctx.state.conversation))
+
+        match result.output.handoff_to:
+            case "alice": return AliceNode()
+            case "bob": return BobNode()
+            case _: return AliceNode()
+
+    def _summarize(self, conversation: list) -> str:
+        return "\n".join(f"{c['speaker']}: {c['message']}" for c in conversation)
 ```
 
-## Pattern 3: Router
+## Pattern 3: Router Graph
 
 ```
-              ┌──────────┐
-              │  ROUTER  │
-              └────┬─────┘
-                   │
-     ┌─────────────┼─────────────┐
-     ▼             ▼             ▼
-┌─────────┐  ┌─────────┐  ┌─────────┐
-│ Handler │  │ Handler │  │ Handler │
-│   SQL   │  │  Code   │  │  Chat   │
-└─────────┘  └─────────┘  └─────────┘
+              ┌──────────────┐
+              │  RouterNode  │
+              │ (classifies) │
+              └──────┬───────┘
+                     │
+     ┌───────────────┼───────────────┐
+     ▼               ▼               ▼
+┌─────────┐    ┌─────────┐    ┌─────────┐
+│   SQL   │    │  Code   │    │  Chat   │
+│  Node   │    │  Node   │    │  Node   │
+└─────────┘    └─────────┘    └─────────┘
 ```
 
 ### Router Implementation
 
 ```python
+from dataclasses import dataclass
 from pydantic import BaseModel
 from typing import Literal
 
+@dataclass
+class RouterState:
+    query: str = ""
+    route: str = ""
+    result: str = ""
+
 class RouterDecision(BaseModel):
-    """Router's classification decision."""
-    route: Literal["sql", "code", "chat", "unknown"]
+    route: Literal["sql", "code", "chat"]
     confidence: float
     reasoning: str
 
 router_agent = Agent(
-    "openai:gpt-4o",
+    'anthropic:claude-sonnet-4-20250514',
+    output_type=RouterDecision,
     system_prompt="""
-    Classify the user's intent and route to the appropriate handler:
-
-    - sql: Database queries, data analysis, SQL questions
-    - code: Code writing, debugging, refactoring
-    - chat: General conversation, questions, explanations
-
-    Return the most appropriate route with confidence.
+    Classify the user's intent:
+    - sql: Database queries, data analysis
+    - code: Programming, debugging
+    - chat: General questions, explanations
     """,
-    output_type=RouterDecision
+    instrument=True
 )
 
-handlers = {
-    "sql": sql_agent,
-    "code": code_agent,
-    "chat": chat_agent,
-}
+@dataclass
+class RouterNode(BaseNode[RouterState]):
+    async def run(self, ctx: GraphRunContext[RouterState]) -> 'SQLNode | CodeNode | ChatNode':
+        result = await router_agent.run(ctx.state.query)
+        ctx.state.route = result.output.route
 
-async def routed_request(query: str) -> str:
-    """Route request to appropriate handler."""
-    # Classify
-    decision = await router_agent.run(query)
+        match result.output.route:
+            case "sql": return SQLNode()
+            case "code": return CodeNode()
+            case "chat": return ChatNode()
+            case _: return ChatNode()
 
-    if decision.data.confidence < 0.7:
-        # Low confidence - use general chat
-        handler = handlers["chat"]
-    else:
-        handler = handlers.get(decision.data.route, handlers["chat"])
+@dataclass
+class SQLNode(BaseNode[RouterState]):
+    async def run(self, ctx: GraphRunContext[RouterState]) -> End[str]:
+        sql_agent = Agent(
+            'anthropic:claude-sonnet-4-20250514',
+            output_type=str,
+            system_prompt="You are a SQL expert.",
+            instrument=True
+        )
+        result = await sql_agent.run(ctx.state.query)
+        ctx.state.result = result.output
+        return End(result.output)
 
-    # Execute
-    result = await handler.run(query)
-    return result.data
+@dataclass
+class CodeNode(BaseNode[RouterState]):
+    async def run(self, ctx: GraphRunContext[RouterState]) -> End[str]:
+        code_agent = Agent(
+            'anthropic:claude-sonnet-4-20250514',
+            output_type=str,
+            system_prompt="You are a coding expert.",
+            instrument=True
+        )
+        result = await code_agent.run(ctx.state.query)
+        ctx.state.result = result.output
+        return End(result.output)
+
+@dataclass
+class ChatNode(BaseNode[RouterState]):
+    async def run(self, ctx: GraphRunContext[RouterState]) -> End[str]:
+        chat_agent = Agent(
+            'anthropic:claude-sonnet-4-20250514',
+            output_type=str,
+            system_prompt="You are a helpful assistant.",
+            instrument=True
+        )
+        result = await chat_agent.run(ctx.state.query)
+        ctx.state.result = result.output
+        return End(result.output)
 ```
 
-## Pattern 4: Pipeline
+## Pattern 4: Pipeline Graph
 
 ```
-┌───────┐    ┌───────┐    ┌───────┐    ┌───────┐
-│ Parse │ → │ Enrich │ → │Process│ → │ Format│
-└───────┘    └───────┘    └───────┘    └───────┘
+┌─────────┐    ┌──────────┐    ┌──────────┐    ┌─────────┐
+│ Extract │ → │ Transform │ → │  Enrich  │ → │  Load   │
+│  Node   │    │   Node   │    │   Node   │    │  Node   │
+└─────────┘    └──────────┘    └──────────┘    └─────────┘
 ```
 
 ### Pipeline Implementation
 
 ```python
-class PipelineState(BaseModel):
-    """State flowing through pipeline."""
-    raw_input: str
-    parsed: dict | None = None
-    enriched: dict | None = None
-    processed: dict | None = None
-    formatted: str | None = None
+from dataclasses import dataclass, field
 
-async def run_pipeline(input: str) -> str:
-    """Sequential multi-agent pipeline."""
-    state = PipelineState(raw_input=input)
+@dataclass
+class PipelineState:
+    raw_input: str = ""
+    extracted: dict = field(default_factory=dict)
+    transformed: dict = field(default_factory=dict)
+    enriched: dict = field(default_factory=dict)
+    final_output: str = ""
 
-    # Stage 1: Parse
-    parse_result = await parse_agent.run(state.raw_input)
-    state = state.model_copy(update={"parsed": parse_result.data})
+@dataclass
+class ExtractNode(BaseNode[PipelineState]):
+    async def run(self, ctx: GraphRunContext[PipelineState]) -> 'TransformNode':
+        extract_agent = Agent(
+            'anthropic:claude-sonnet-4-20250514',
+            output_type=dict,
+            system_prompt="Extract structured data from raw text."
+        )
+        result = await extract_agent.run(ctx.state.raw_input)
+        ctx.state.extracted = result.output
+        return TransformNode()
 
-    # Stage 2: Enrich
-    enrich_result = await enrich_agent.run(str(state.parsed))
-    state = state.model_copy(update={"enriched": enrich_result.data})
+@dataclass
+class TransformNode(BaseNode[PipelineState]):
+    async def run(self, ctx: GraphRunContext[PipelineState]) -> 'EnrichNode':
+        transform_agent = Agent(
+            'anthropic:claude-sonnet-4-20250514',
+            output_type=dict,
+            system_prompt="Transform and normalize the extracted data."
+        )
+        result = await transform_agent.run(str(ctx.state.extracted))
+        ctx.state.transformed = result.output
+        return EnrichNode()
 
-    # Stage 3: Process
-    process_result = await process_agent.run(str(state.enriched))
-    state = state.model_copy(update={"processed": process_result.data})
+@dataclass
+class EnrichNode(BaseNode[PipelineState]):
+    async def run(self, ctx: GraphRunContext[PipelineState]) -> 'LoadNode':
+        enrich_agent = Agent(
+            'anthropic:claude-sonnet-4-20250514',
+            output_type=dict,
+            system_prompt="Enrich the data with additional context and metadata."
+        )
+        result = await enrich_agent.run(str(ctx.state.transformed))
+        ctx.state.enriched = result.output
+        return LoadNode()
 
-    # Stage 4: Format
-    format_result = await format_agent.run(str(state.processed))
-    state = state.model_copy(update={"formatted": format_result.data})
-
-    return state.formatted
+@dataclass
+class LoadNode(BaseNode[PipelineState]):
+    async def run(self, ctx: GraphRunContext[PipelineState]) -> End[str]:
+        load_agent = Agent(
+            'anthropic:claude-sonnet-4-20250514',
+            output_type=str,
+            system_prompt="Format the enriched data for final output."
+        )
+        result = await load_agent.run(str(ctx.state.enriched))
+        ctx.state.final_output = result.output
+        return End(result.output)
 ```
 
-## Pattern 5: Hierarchy
+## Pattern 5: Debate Graph
 
 ```
-              ┌───────────────┐
-              │   CEO Agent   │
-              └───────┬───────┘
-                      │
-        ┌─────────────┼─────────────┐
-        ▼             ▼             ▼
-   ┌─────────┐  ┌─────────┐  ┌─────────┐
-   │   CTO   │  │   CFO   │  │   CMO   │
-   └────┬────┘  └────┬────┘  └────┬────┘
-        │            │            │
-    ┌───┴───┐    ┌───┴───┐    ┌───┴───┐
-    ▼       ▼    ▼       ▼    ▼       ▼
- Dev     Ops   Acct   Fin   Mkt   Sales
+        ┌─────────────┐
+        │  ProNode    │◄───┐
+        │ (argues for)│    │
+        └──────┬──────┘    │
+               │           │
+               ▼           │
+        ┌─────────────┐    │
+        │  ConNode    │────┘
+        │(argues against)
+        └──────┬──────┘
+               │
+               ▼
+        ┌─────────────┐
+        │  JudgeNode  │
+        │ (decides)   │
+        └─────────────┘
 ```
 
-### Hierarchical Implementation
+### Debate Implementation
 
 ```python
-class TeamResult(BaseModel):
-    """Result from a team."""
-    team: str
-    findings: list[str]
-    recommendations: list[str]
+from dataclasses import dataclass, field
 
-class LeaderSynthesis(BaseModel):
-    """Leader's synthesis of team results."""
-    summary: str
-    decision: str
-    delegations: list[dict]
+@dataclass
+class DebateState:
+    topic: str = ""
+    pro_arguments: list[str] = field(default_factory=list)
+    con_arguments: list[str] = field(default_factory=list)
+    rounds: int = 0
+    max_rounds: int = 3
+    verdict: str = ""
 
-def create_team_lead(name: str, team_agents: list[Agent]):
-    """Create a team lead that coordinates team agents."""
+class DebateArgument(BaseModel):
+    argument: str
+    strength: float  # 0-1
+    rebuttals: list[str]
 
-    async def lead_node(state: HierarchyState) -> TeamResult:
-        # Delegate to team members
-        team_results = await asyncio.gather(*[
-            agent.run(state.task) for agent in team_agents
-        ])
-
-        # Synthesize team results
-        synthesis = await synthesis_agent.run(
-            f"Synthesize results from {name} team: {team_results}"
+@dataclass
+class ProNode(BaseNode[DebateState]):
+    async def run(self, ctx: GraphRunContext[DebateState]) -> 'ConNode':
+        pro_agent = Agent(
+            'anthropic:claude-sonnet-4-20250514',
+            output_type=DebateArgument,
+            system_prompt="You argue IN FAVOR of the topic. Be persuasive."
         )
 
-        return TeamResult(
-            team=name,
-            findings=extract_findings(team_results),
-            recommendations=synthesis.data.recommendations
+        context = f"""
+        Topic: {ctx.state.topic}
+        Previous pro arguments: {ctx.state.pro_arguments}
+        Opponent's arguments: {ctx.state.con_arguments}
+        """
+
+        result = await pro_agent.run(context)
+        ctx.state.pro_arguments.append(result.output.argument)
+        return ConNode()
+
+@dataclass
+class ConNode(BaseNode[DebateState]):
+    async def run(self, ctx: GraphRunContext[DebateState]) -> 'ProNode | JudgeNode':
+        con_agent = Agent(
+            'anthropic:claude-sonnet-4-20250514',
+            output_type=DebateArgument,
+            system_prompt="You argue AGAINST the topic. Be persuasive."
         )
 
-    return lead_node
+        context = f"""
+        Topic: {ctx.state.topic}
+        Opponent's arguments: {ctx.state.pro_arguments}
+        Previous con arguments: {ctx.state.con_arguments}
+        """
+
+        result = await con_agent.run(context)
+        ctx.state.con_arguments.append(result.output.argument)
+        ctx.state.rounds += 1
+
+        if ctx.state.rounds >= ctx.state.max_rounds:
+            return JudgeNode()
+        return ProNode()
+
+@dataclass
+class JudgeNode(BaseNode[DebateState]):
+    async def run(self, ctx: GraphRunContext[DebateState]) -> End[str]:
+        class Verdict(BaseModel):
+            winner: str  # "pro" or "con"
+            reasoning: str
+            key_points: list[str]
+
+        judge_agent = Agent(
+            'anthropic:claude-sonnet-4-20250514',
+            output_type=Verdict,
+            system_prompt="You are an impartial judge. Evaluate arguments fairly."
+        )
+
+        debate_summary = f"""
+        Topic: {ctx.state.topic}
+
+        PRO Arguments:
+        {chr(10).join(f'- {a}' for a in ctx.state.pro_arguments)}
+
+        CON Arguments:
+        {chr(10).join(f'- {a}' for a in ctx.state.con_arguments)}
+        """
+
+        result = await judge_agent.run(debate_summary)
+        ctx.state.verdict = result.output.reasoning
+
+        return End(f"Winner: {result.output.winner}\n{result.output.reasoning}")
 ```
 
-## Coordination Patterns
+## State-Based Coordination
 
-### Shared Memory
-
-```python
-from langgraph.store.memory import InMemoryStore
-
-# Shared memory across agents
-store = InMemoryStore()
-
-async def agent_with_shared_memory(state, store):
-    # Read from shared memory
-    shared = await store.get(("shared", "context"))
-
-    # Do work...
-
-    # Write to shared memory
-    await store.put(("shared", "context"), {"key": "value"})
-```
-
-### Message Passing
+All multi-agent patterns share state through `GraphRunContext`:
 
 ```python
-class AgentMessage(BaseModel):
-    """Message between agents."""
-    from_agent: str
-    to_agent: str
-    message_type: str
-    content: dict
-    timestamp: datetime
+@dataclass
+class MultiAgentState:
+    # Shared context
+    shared_knowledge: dict = field(default_factory=dict)
 
-message_queue: asyncio.Queue[AgentMessage] = asyncio.Queue()
+    # Agent-specific message histories
+    agent_a_messages: list = field(default_factory=list)
+    agent_b_messages: list = field(default_factory=list)
 
-async def send_to_agent(target: str, content: dict):
-    await message_queue.put(AgentMessage(
-        from_agent="current",
-        to_agent=target,
-        message_type="request",
-        content=content,
-        timestamp=datetime.utcnow()
-    ))
+    # Coordination metadata
+    current_agent: str = ""
+    completed_agents: list[str] = field(default_factory=list)
+    handoff_reason: str = ""
+
+# Each agent node can read/write shared state
+@dataclass
+class AgentANode(BaseNode[MultiAgentState]):
+    async def run(self, ctx: GraphRunContext[MultiAgentState]) -> 'AgentBNode':
+        # Read shared knowledge
+        context = ctx.state.shared_knowledge
+
+        # Call agent with its own message history
+        result = await agent_a.run(
+            str(context),
+            message_history=ctx.state.agent_a_messages
+        )
+
+        # Update state
+        ctx.state.agent_a_messages = result.all_messages()
+        ctx.state.shared_knowledge["agent_a_output"] = result.output
+        ctx.state.completed_agents.append("agent_a")
+
+        return AgentBNode()
 ```
 
 ## Output Format
@@ -405,35 +643,44 @@ async def send_to_agent(target: str, content: dict):
 ```
 ⚡ SKILL_ACTIVATED: #MLTI-4H7N
 
-## Multi-Agent Design: [System Name]
+## Multi-Agent Graph: [System Name]
 
 ### Pattern
-[Supervisor / Swarm / Router / Pipeline / Hierarchy]
+[Supervisor / Swarm / Router / Pipeline / Debate]
 
-### Agents
-| Agent | Role | Model | Tools |
-|-------|------|-------|-------|
-| [name] | [role] | [model] | [tools] |
-
-### Coordination
-- Type: [shared memory / message passing / direct calls]
-- State: [state schema]
-
-### Flow Diagram
-```mermaid
-[diagram]
+### Graph Structure
+```
+[Node A] → [Node B] → [Node C] → End
+              ↑           │
+              └───────────┘
 ```
 
+### State Definition
+```python
+@dataclass
+class [System]State:
+    query: str = ""
+    agent_outputs: dict = field(default_factory=dict)
+    ...
+```
+
+### Nodes & Agents
+| Node | Agent | Role | Transitions To |
+|------|-------|------|----------------|
+| [NodeName] | [agent_name] | [role] | [next nodes] |
+
 ### Files
-- `agents/[system]/orchestrator.py`
-- `agents/[system]/agents/[name].py`
+- `agents/[system]/graph.py`
+- `agents/[system]/nodes/[node].py`
+- `agents/[system]/agents/[agent].py`
 ```
 
 ## Common Mistakes
 
-- Too many agents (overhead)
-- No clear ownership (confusion)
-- Tight coupling (brittle)
-- No error propagation
-- Circular dependencies
-- Missing termination condition
+- Not using dataclass for state (use @dataclass, not BaseModel)
+- Forgetting to update state before returning next node
+- Infinite loops (no termination condition)
+- Not preserving agent message_history in state
+- Too many nodes (overhead)
+- Tight coupling between nodes (use state for communication)
+- Missing instrument=True on agents (no tracing)

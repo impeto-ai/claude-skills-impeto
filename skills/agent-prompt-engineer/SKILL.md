@@ -1,366 +1,463 @@
 ---
 name: agent-prompt-engineer
-description: Use when crafting prompts for agents, designing structured output schemas. Activates for "prompt", "system message", "schema output", "instruções agent".
+description: Use when crafting prompts for graph-based agents, designing structured output schemas for nodes. Activates for "prompt", "system message", "schema output", "instruções agent".
 ---
 
-# Agent Prompt Engineer
+# Agent Prompt Engineer (Graph-Specialized)
 
-Expert in crafting effective prompts and structured output schemas for AI agents.
+Expert in crafting effective prompts and structured output schemas for **Pydantic AI Agents inside Graph nodes**.
 
 ## When to Use
 
-- Designing agent system prompts
-- Creating structured output schemas
-- Optimizing prompt performance
+- Designing agent system prompts for graph nodes
+- Creating output_type schemas that match node transitions
+- Optimizing prompts for stateful graph execution
 - User says: prompt, system message, schema, instruções
-- NOT when: building agent logic (use graph-agent)
+- NOT when: building graph structure (use graph-agent)
 
-## Prompt Architecture
+## Graph-Aware Prompt Architecture
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                      AGENT PROMPT STACK                         │
+│                 GRAPH NODE AGENT PROMPT STACK                   │
 ├─────────────────────────────────────────────────────────────────┤
 │  SYSTEM PROMPT                                                  │
-│  ├── Role Definition                                            │
-│  ├── Capabilities & Constraints                                 │
-│  ├── Output Format Instructions                                 │
-│  └── Tool Usage Guidelines                                      │
+│  ├── Role (what this node's agent does)                        │
+│  ├── Graph Position (where in workflow)                        │
+│  ├── Expected Output (next node or End)                        │
+│  └── State Access (what ctx.state provides)                    │
 ├─────────────────────────────────────────────────────────────────┤
-│  DYNAMIC CONTEXT                                                │
-│  ├── Retrieved Information                                      │
-│  ├── Previous Actions                                           │
-│  └── Current State                                              │
+│  DYNAMIC CONTEXT (from GraphRunContext)                        │
+│  ├── ctx.state.* (accumulated state)                           │
+│  ├── message_history (conversation)                            │
+│  └── Previous node outputs                                     │
 ├─────────────────────────────────────────────────────────────────┤
 │  USER MESSAGE                                                   │
-│  └── Current Task/Query                                         │
+│  └── Current task (from node logic)                            │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
-## System Prompt Template
+## Agent-in-Node Pattern
+
+### Basic Structure
 
 ```python
-SYSTEM_PROMPT = """
-# Role
-You are {role_name}, an AI assistant specialized in {domain}.
+from dataclasses import dataclass, field
+from pydantic import BaseModel
+from pydantic_ai import Agent
+from pydantic_graph import BaseNode, End, GraphRunContext
 
-# Capabilities
-You CAN:
-- {capability_1}
-- {capability_2}
-- {capability_3}
+# 1. STATE - shared across all nodes
+@dataclass
+class WorkflowState:
+    user_query: str = ""
+    research_results: list[str] = field(default_factory=list)
+    agent_messages: list = field(default_factory=list)  # For message_history
 
-You CANNOT:
-- {constraint_1}
-- {constraint_2}
+# 2. OUTPUT SCHEMA - what agent returns (becomes next node or End value)
+class ResearchResult(BaseModel):
+    findings: list[str]
+    confidence: float
+    needs_more_research: bool
 
-# Available Tools
-{tool_descriptions}
+# 3. AGENT - with output_type matching what node needs
+research_agent = Agent(
+    'anthropic:claude-sonnet-4-20250514',
+    output_type=ResearchResult,
+    system_prompt="""
+    You are a research specialist in a multi-step workflow.
 
-# Output Format
-Always respond in the following JSON structure:
-```json
-{output_schema_example}
+    Your role: Gather and synthesize information.
+    Your position: After query analysis, before synthesis.
+    Your output: Structured research findings.
+
+    Guidelines:
+    - Set needs_more_research=true if query is complex
+    - Confidence should reflect source quality
+    - Findings should be atomic facts
+    """,
+    instrument=True  # Enable tracing
+)
+
+# 4. NODE - calls agent, uses output to decide next node
+@dataclass
+class ResearchNode(BaseNode[WorkflowState]):
+    async def run(self, ctx: GraphRunContext[WorkflowState]) -> 'SynthesisNode | ResearchNode':
+        result = await research_agent.run(
+            f"Research this topic: {ctx.state.user_query}",
+            message_history=ctx.state.agent_messages
+        )
+
+        # Update state with message history for continuity
+        ctx.state.agent_messages = result.all_messages()
+        ctx.state.research_results = result.output.findings
+
+        # Output schema drives node transition
+        if result.output.needs_more_research:
+            return ResearchNode()  # Loop back
+        return SynthesisNode()  # Move forward
 ```
 
-# Guidelines
-1. {guideline_1}
-2. {guideline_2}
-3. {guideline_3}
+## System Prompt Patterns for Graph Nodes
 
-# Examples
-{few_shot_examples}
-"""
-```
-
-## Prompt Patterns
-
-### Pattern 1: Role-First
+### Pattern 1: Position-Aware Prompt
 
 ```python
-system_prompt = """
-# Role
-You are a Senior Data Analyst with expertise in SQL and Python.
-You analyze data, find patterns, and provide actionable insights.
+# Agent knows its position in the graph
+analyst_agent = Agent(
+    'anthropic:claude-sonnet-4-20250514',
+    output_type=AnalysisOutput,
+    system_prompt="""
+    # Role
+    You are a Data Analyst in a 4-stage pipeline.
 
-# Your Approach
-1. Understand the question fully before analyzing
-2. Use SQL for data queries, Python for complex analysis
-3. Always validate your findings before presenting
-4. Explain your reasoning clearly
+    # Your Position in Workflow
+    Stage 1: Data Ingestion (complete)
+    Stage 2: **Data Analysis** (YOU ARE HERE)
+    Stage 3: Report Generation (next)
+    Stage 4: Delivery (final)
 
-# Output Format
-Provide your analysis as:
-- Summary (2-3 sentences)
-- Key Findings (bullet points)
-- Recommendations (actionable steps)
-- Confidence Level (high/medium/low)
-"""
+    # What You Receive
+    - Raw data from ingestion stage
+    - User's analysis requirements
+
+    # What You Must Output
+    - analyzed_data: processed insights
+    - key_metrics: numeric KPIs
+    - ready_for_report: bool (false = need more data)
+
+    # Constraints
+    - NEVER skip to report generation
+    - ALWAYS validate data quality first
+    - Flag anomalies for human review
+    """
+)
 ```
 
-### Pattern 2: Constraint-Heavy
+### Pattern 2: State-Aware Prompt
 
 ```python
-system_prompt = """
-# Task
-Answer customer support queries about our product.
+# Agent uses state context
+@dataclass
+class ConversationNode(BaseNode[ChatState]):
+    async def run(self, ctx: GraphRunContext[ChatState]) -> 'ConversationNode | End[str]':
+        # Build context from state
+        context = f"""
+        Previous topics discussed: {ctx.state.topics}
+        User preferences: {ctx.state.preferences}
+        Conversation turn: {ctx.state.turn_count}
+        """
 
-# Constraints
-- NEVER reveal internal processes or system details
-- NEVER make promises about features not in documentation
-- NEVER provide medical, legal, or financial advice
-- ALWAYS refer complex issues to human support
-- MAXIMUM response length: 200 words
+        result = await chat_agent.run(
+            ctx.state.current_message,
+            message_history=ctx.state.messages,
+            deps=context  # Pass state as dependency
+        )
 
-# Tone
-- Professional but friendly
-- Empathetic to customer frustration
-- Clear and direct
+        # Update state
+        ctx.state.messages = result.all_messages()
+        ctx.state.turn_count += 1
 
-# Escalation Triggers
-Escalate to human if:
-- Customer is upset (3+ negative messages)
-- Request involves refunds > $100
-- Technical issue not in knowledge base
-"""
+        if result.output.should_end:
+            return End(result.output.summary)
+        return ConversationNode()
 ```
 
-### Pattern 3: Few-Shot Examples
+### Pattern 3: Decision Node Prompt
 
 ```python
-system_prompt = """
-# Task
-Extract structured information from text.
+# Agent that decides which node comes next
+class RouterDecision(BaseModel):
+    route: Literal["research", "calculate", "summarize", "end"]
+    reasoning: str
+    confidence: float
 
-# Examples
+router_agent = Agent(
+    'anthropic:claude-sonnet-4-20250514',
+    output_type=RouterDecision,
+    system_prompt="""
+    # Role
+    You are a Router Agent that decides the next step in a workflow.
 
-Input: "John Smith, 35, works at Google as a software engineer"
-Output:
-```json
-{
-  "name": "John Smith",
-  "age": 35,
-  "company": "Google",
-  "role": "software engineer"
-}
+    # Available Routes
+    - "research": User needs information lookup
+    - "calculate": User needs numerical computation
+    - "summarize": User needs content summarization
+    - "end": Task is complete
+
+    # Decision Criteria
+    1. Analyze user intent
+    2. Check what's already been done (from state)
+    3. Choose the most appropriate next step
+
+    # Output Format
+    - route: one of the valid routes
+    - reasoning: why this route (1 sentence)
+    - confidence: 0.0-1.0
+    """
+)
+
+@dataclass
+class RouterNode(BaseNode[WorkflowState]):
+    async def run(self, ctx: GraphRunContext[WorkflowState]) -> 'ResearchNode | CalculateNode | SummarizeNode | End[str]':
+        result = await router_agent.run(
+            f"User query: {ctx.state.query}\nCompleted steps: {ctx.state.completed_steps}"
+        )
+
+        match result.output.route:
+            case "research": return ResearchNode()
+            case "calculate": return CalculateNode()
+            case "summarize": return SummarizeNode()
+            case "end": return End(ctx.state.final_result)
 ```
 
-Input: "The CEO, Sarah Johnson, announced quarterly earnings"
-Output:
-```json
-{
-  "name": "Sarah Johnson",
-  "age": null,
-  "company": null,
-  "role": "CEO"
-}
-```
+## Output Schema Design for Graphs
 
-# Instructions
-Extract person information from the input. Use null for missing fields.
-"""
-```
-
-### Pattern 4: Chain-of-Thought
+### Schema That Maps to Node Transitions
 
 ```python
-system_prompt = """
-# Task
-Solve complex problems step by step.
-
-# Process
-1. <understanding>
-   Restate the problem in your own words.
-   Identify key information and constraints.
-   </understanding>
-
-2. <planning>
-   Break down into sub-problems.
-   Identify which tools to use.
-   </planning>
-
-3. <execution>
-   Solve each sub-problem.
-   Show your work.
-   </execution>
-
-4. <verification>
-   Check your answer.
-   Consider edge cases.
-   </verification>
-
-5. <answer>
-   Provide final answer with confidence level.
-   </answer>
-"""
-```
-
-## Structured Output Design
-
-### Basic Schema
-
-```python
-from pydantic import BaseModel, Field
 from typing import Literal
-
-class AgentResponse(BaseModel):
-    """Standard agent response schema."""
-
-    thought: str = Field(
-        ...,
-        description="Agent's reasoning process",
-        min_length=10
-    )
-
-    action: Literal["respond", "use_tool", "ask_clarification"] = Field(
-        ...,
-        description="What action to take"
-    )
-
-    response: str | None = Field(
-        default=None,
-        description="Response to user (if action=respond)"
-    )
-
-    tool_call: dict | None = Field(
-        default=None,
-        description="Tool to call (if action=use_tool)"
-    )
-```
-
-### Discriminated Unions
-
-```python
-from typing import Literal, Annotated
 from pydantic import BaseModel, Field
 
-class SuccessResponse(BaseModel):
-    status: Literal["success"] = "success"
-    data: dict
-    confidence: float = Field(ge=0, le=1)
+# Output schema mirrors graph structure
+class ProcessingResult(BaseModel):
+    """Agent output that drives node transitions."""
 
-class ErrorResponse(BaseModel):
-    status: Literal["error"] = "error"
-    error_code: str
-    message: str
-    recoverable: bool
+    status: Literal["success", "needs_review", "failed"] = Field(
+        description="Determines next node: success->next, needs_review->review_node, failed->error_node"
+    )
 
-class PendingResponse(BaseModel):
-    status: Literal["pending"] = "pending"
-    next_action: str
-    estimated_steps: int
+    data: dict = Field(
+        description="Processed data to store in state"
+    )
 
-AgentOutput = Annotated[
-    SuccessResponse | ErrorResponse | PendingResponse,
-    Field(discriminator="status")
-]
+    next_action: str | None = Field(
+        default=None,
+        description="Hint for next node if status=success"
+    )
+
+@dataclass
+class ProcessNode(BaseNode[State]):
+    async def run(self, ctx: GraphRunContext[State]) -> 'NextNode | ReviewNode | ErrorNode':
+        result = await process_agent.run(...)
+
+        ctx.state.processed_data = result.output.data
+
+        match result.output.status:
+            case "success": return NextNode()
+            case "needs_review": return ReviewNode()
+            case "failed": return ErrorNode()
 ```
 
-### Nested Schemas for Complex Output
+### Hierarchical Output for Complex Nodes
 
 ```python
-class ReasoningStep(BaseModel):
-    """Single step in agent reasoning."""
-    step_number: int
-    thought: str
-    action_taken: str | None
-    observation: str | None
+class SubTask(BaseModel):
+    """Individual sub-task in decomposition."""
+    id: str
+    description: str
+    priority: int
+    estimated_complexity: Literal["simple", "moderate", "complex"]
 
-class ToolUsage(BaseModel):
-    """Record of tool usage."""
-    tool_name: str
-    input: dict
-    output: dict
-    duration_ms: int
+class DecompositionOutput(BaseModel):
+    """Output for task decomposition node."""
 
-class AgentTrace(BaseModel):
-    """Complete agent execution trace."""
-    query: str
-    reasoning: list[ReasoningStep]
-    tools_used: list[ToolUsage]
-    final_answer: str
-    total_tokens: int
-    total_time_ms: int
+    subtasks: list[SubTask] = Field(
+        min_length=1,
+        max_length=10,
+        description="Decomposed sub-tasks"
+    )
+
+    execution_order: list[str] = Field(
+        description="Order to execute subtask IDs"
+    )
+
+    parallel_groups: list[list[str]] = Field(
+        description="Subtasks that can run in parallel"
+    )
+
+    requires_human_input: bool = Field(
+        description="True if any subtask needs clarification"
+    )
+
+decomposition_agent = Agent(
+    'anthropic:claude-sonnet-4-20250514',
+    output_type=DecompositionOutput,
+    system_prompt="""
+    You decompose complex tasks into manageable subtasks.
+
+    Rules:
+    1. Each subtask must be atomic (single responsibility)
+    2. Identify dependencies between subtasks
+    3. Group independent subtasks for parallel execution
+    4. Flag anything ambiguous for human input
+
+    Output must include execution_order respecting dependencies.
+    """
+)
 ```
 
-## Prompt Optimization Techniques
+## Prompt + State Integration
 
-### 1. Clear Delimiters
+### Using deps for State Context
 
 ```python
-# Use consistent delimiters
-prompt = """
-<context>
-{retrieved_context}
-</context>
+from dataclasses import dataclass
+from pydantic_ai import Agent, RunContext
 
-<task>
-{user_query}
-</task>
+@dataclass
+class NodeDeps:
+    """Dependencies injected from GraphRunContext."""
+    accumulated_context: str
+    previous_results: list[str]
+    iteration_count: int
 
-<format>
-Respond in JSON format.
-</format>
-"""
+synthesis_agent = Agent(
+    'anthropic:claude-sonnet-4-20250514',
+    output_type=SynthesisOutput,
+    deps_type=NodeDeps,
+    system_prompt="""
+    You synthesize information from previous workflow stages.
+
+    Use the provided context to:
+    1. Combine findings from all previous steps
+    2. Identify patterns and contradictions
+    3. Generate actionable conclusions
+    """
+)
+
+@synthesis_agent.system_prompt
+def add_context(ctx: RunContext[NodeDeps]) -> str:
+    return f"""
+
+    # Context from Previous Nodes
+    {ctx.deps.accumulated_context}
+
+    # Results to Synthesize
+    {chr(10).join(f'- {r}' for r in ctx.deps.previous_results)}
+
+    # Iteration
+    This is synthesis attempt #{ctx.deps.iteration_count}
+    """
+
+@dataclass
+class SynthesisNode(BaseNode[WorkflowState]):
+    async def run(self, ctx: GraphRunContext[WorkflowState]) -> End[str]:
+        deps = NodeDeps(
+            accumulated_context=ctx.state.context,
+            previous_results=ctx.state.all_results,
+            iteration_count=ctx.state.synthesis_attempts
+        )
+
+        result = await synthesis_agent.run(
+            "Synthesize all findings into final report",
+            deps=deps
+        )
+
+        return End(result.output.final_report)
 ```
 
-### 2. Explicit Formatting
+## Message History Patterns
+
+### Preserving Conversation Across Nodes
 
 ```python
-# Tell model exactly what to output
-prompt = """
-Output ONLY a JSON object with these exact keys:
-- "answer": string (your response)
-- "confidence": number between 0 and 1
-- "sources": array of strings
+@dataclass
+class ChatState:
+    messages: list = field(default_factory=list)
+    context: str = ""
 
-Do NOT include any text before or after the JSON.
-Do NOT use markdown code blocks.
-"""
+@dataclass
+class ChatNode(BaseNode[ChatState]):
+    user_input: str
+
+    async def run(self, ctx: GraphRunContext[ChatState]) -> 'ChatNode | End[str]':
+        result = await chat_agent.run(
+            self.user_input,
+            message_history=ctx.state.messages  # Continue conversation
+        )
+
+        # IMPORTANT: Update message history in state
+        ctx.state.messages = result.all_messages()
+
+        if result.output.conversation_complete:
+            return End(result.output.summary)
+
+        return ChatNode(user_input=result.output.follow_up_question)
 ```
 
-### 3. Negative Examples
+### Multi-Agent Message Passing
 
 ```python
-# Show what NOT to do
-prompt = """
-# Bad Example (DO NOT do this)
-"I think the answer might be 42, but I'm not sure..."
+@dataclass
+class MultiAgentState:
+    researcher_messages: list = field(default_factory=list)
+    critic_messages: list = field(default_factory=list)
+    shared_context: str = ""
 
-# Good Example (DO this)
-{"answer": "42", "confidence": 0.95, "reasoning": "Based on..."}
-"""
+# Each agent maintains its own history
+@dataclass
+class ResearchNode(BaseNode[MultiAgentState]):
+    async def run(self, ctx: GraphRunContext[MultiAgentState]) -> 'CriticNode':
+        result = await researcher_agent.run(
+            ctx.state.shared_context,
+            message_history=ctx.state.researcher_messages
+        )
+        ctx.state.researcher_messages = result.all_messages()
+        ctx.state.shared_context = result.output.findings
+        return CriticNode()
+
+@dataclass
+class CriticNode(BaseNode[MultiAgentState]):
+    async def run(self, ctx: GraphRunContext[MultiAgentState]) -> 'ResearchNode | End[str]':
+        result = await critic_agent.run(
+            f"Review: {ctx.state.shared_context}",
+            message_history=ctx.state.critic_messages
+        )
+        ctx.state.critic_messages = result.all_messages()
+
+        if result.output.approved:
+            return End(ctx.state.shared_context)
+        return ResearchNode()  # Back to research
 ```
 
-## Testing Prompts
+## Testing Graph Agent Prompts
 
 ```python
 import pytest
-from pydantic import ValidationError
+from pydantic_graph import Graph
 
-class TestAgentPrompts:
-    """Test prompt produces valid outputs."""
-
-    @pytest.mark.asyncio
-    async def test_output_matches_schema(self, agent):
-        """Agent output matches expected schema."""
-        result = await agent.run("Test query")
-
-        # Should not raise
-        AgentResponse.model_validate(result)
+class TestGraphAgentPrompts:
+    """Test prompts produce valid outputs for graph transitions."""
 
     @pytest.mark.asyncio
-    async def test_handles_edge_cases(self, agent):
-        """Agent handles edge cases gracefully."""
-        edge_cases = [
-            "",  # Empty
-            "a" * 10000,  # Very long
-            "SELECT * FROM users; DROP TABLE users;",  # Injection
-        ]
+    async def test_output_enables_valid_transition(self):
+        """Agent output maps to valid next node."""
+        result = await router_agent.run("Calculate 2+2")
 
-        for case in edge_cases:
-            result = await agent.run(case)
-            assert result.status in ["success", "error"]
+        # Output should be valid route
+        assert result.output.route in ["research", "calculate", "summarize", "end"]
+        assert 0 <= result.output.confidence <= 1
+
+    @pytest.mark.asyncio
+    async def test_state_preserved_across_nodes(self):
+        """Message history preserved through node transitions."""
+        graph = Graph(nodes=[ChatNode, SummaryNode])
+        state = ChatState()
+
+        result = await graph.run(ChatNode(user_input="Hello"), state=state)
+
+        # Messages should accumulate
+        assert len(state.messages) > 0
+
+    @pytest.mark.asyncio
+    async def test_deterministic_routing(self):
+        """Same input produces consistent routing."""
+        results = [await router_agent.run("What is 2+2?") for _ in range(3)]
+
+        # Should consistently route to calculate
+        routes = [r.output.route for r in results]
+        assert routes.count("calculate") >= 2  # Allow some variation
 ```
 
 ## Output Format
@@ -368,34 +465,42 @@ class TestAgentPrompts:
 ```
 ⚡ SKILL_ACTIVATED: #PRMT-2E8R
 
-## Prompt Design: [Agent Name]
+## Graph Agent Prompt: [Node Name]
 
 ### System Prompt
 ```
-[Full system prompt]
+[Full system prompt with graph position awareness]
 ```
 
 ### Output Schema
 ```python
 class [Name]Output(BaseModel):
+    # Fields that map to node transitions
     ...
 ```
 
-### Key Design Decisions
-1. [Decision 1]: [Rationale]
-2. [Decision 2]: [Rationale]
+### State Integration
+- Uses ctx.state.[fields]: [list]
+- Updates ctx.state.[fields]: [list]
+- Message history: [yes/no]
+
+### Graph Position
+```
+[Previous Node] → [THIS NODE] → [Next Nodes]
+```
 
 ### Test Cases
-- [x] Standard query
-- [x] Edge cases
-- [x] Malicious input
+- [x] Valid transition for success case
+- [x] Valid transition for failure case
+- [x] State properly updated
+- [x] Message history preserved
 ```
 
 ## Common Mistakes
 
-- Vague role definitions (be specific)
-- No output format instructions (inconsistent outputs)
-- Missing constraints (agent goes off-rails)
-- Too many examples (token waste)
-- Not testing edge cases
-- Hardcoding values that should be dynamic
+- Not specifying graph position (agent doesn't know its role)
+- Output schema doesn't match possible node transitions
+- Forgetting to update message_history in state
+- Not using deps for state context injection
+- Missing instrument=True for tracing
+- Output type not matching node return type annotation
