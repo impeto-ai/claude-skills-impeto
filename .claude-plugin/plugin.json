@@ -1,0 +1,11 @@
+{
+  "name": "impetos-skills",
+  "description": "Skills core para Claude Code com auto-criação de hooks",
+  "version": "1.0.0",
+  "author": {
+    "name": "ImpetOS"
+  },
+  "repository": "https://github.com/impetos/claude-skills-impeto",
+  "license": "MIT",
+  "keywords": ["skills", "hooks", "automation", "claude-code"]
+}
