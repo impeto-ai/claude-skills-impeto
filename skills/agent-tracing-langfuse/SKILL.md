@@ -4,9 +4,9 @@ description: Use when implementing observability, tracing, or monitoring for AI 
 chain: agent-audit-graph
 ---
 
-# Agent Tracing with Langfuse
+# Agent Tracing with Langfuse v3+
 
-Expert in implementing production-grade observability for Pydantic AI agents using Langfuse. Covers traces, spans, sessions, evaluations, and cost tracking.
+Expert in implementing production-grade observability for Pydantic AI agents using **Langfuse v3+**. Covers traces, generations, spans, sessions, and cost tracking.
 
 ## When to Use
 
@@ -17,588 +17,421 @@ Expert in implementing production-grade observability for Pydantic AI agents usi
 - CHAIN: → agent-audit-graph (after tracing implemented)
 - NOT when: general logging (use standard logging)
 
-## Langfuse Architecture
+## Langfuse v3 Architecture
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                    LANGFUSE OBSERVABILITY                       │
+│                    LANGFUSE v3 HIERARCHY                        │
 ├─────────────────────────────────────────────────────────────────┤
 │                                                                 │
-│   SESSION    → Groups multi-turn conversations                  │
+│   TRACE      → Container principal (1 por request)              │
+│      │         Criado por @observe() no endpoint                │
 │      │                                                          │
-│      ▼                                                          │
-│   TRACE      → Single invocation/request                        │
+│      ├── GENERATION → Chamada LLM (tokens, custo, model)        │
+│      │                 start_as_current_generation()            │
 │      │                                                          │
-│      ├── SPAN        → Logical operation (function, step)       │
-│      │     │                                                    │
-│      │     ├── GENERATION → LLM call with tokens/cost           │
-│      │     └── EVENT      → Point-in-time occurrence            │
+│      ├── SPAN        → Operação genérica (API, DB, etc)         │
+│      │                 start_as_current_span()                  │
 │      │                                                          │
-│      └── SCORE       → Quality metric (human/LLM evaluation)    │
+│      └── SCORE       → Avaliação de qualidade                   │
+│                        langfuse.score()                         │
 │                                                                 │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
-## Environment Setup
+## Quick Start (5 Steps)
 
-### Required Environment Variables
-```python
-import os
+### Step 1: Install Langfuse v3+
 
-# Langfuse Configuration
-os.environ["LANGFUSE_PUBLIC_KEY"] = "pk-lf-..."
-os.environ["LANGFUSE_SECRET_KEY"] = "sk-lf-..."
-os.environ["LANGFUSE_BASE_URL"] = "https://cloud.langfuse.com"  # or self-hosted
-
-# Optional: Disable in development
-os.environ["LANGFUSE_ENABLED"] = "true"  # set "false" to disable
-```
-
-### Production Configuration (.env)
 ```bash
-# .env.production
-LANGFUSE_PUBLIC_KEY=pk-lf-xxxxxxxxxxxx
-LANGFUSE_SECRET_KEY=sk-lf-xxxxxxxxxxxx
-LANGFUSE_BASE_URL=https://cloud.langfuse.com
-
-# Optional settings
-LANGFUSE_RELEASE=v1.2.3
-LANGFUSE_DEBUG=false
-LANGFUSE_SAMPLE_RATE=1.0
+pip install "langfuse>=3.0.0"
 ```
 
-### Configuration Loader Pattern
+### Step 2: Environment Variables
+
+```bash
+# .env
+LANGFUSE_PUBLIC_KEY=pk-lf-xxx
+LANGFUSE_SECRET_KEY=sk-lf-xxx
+LANGFUSE_HOST=https://us.cloud.langfuse.com  # ou https://eu.cloud.langfuse.com
+```
+
+### Step 3: @observe no Endpoint (Cria Trace Pai)
+
 ```python
-from pydantic_settings import BaseSettings
-from typing import Optional
+from langfuse import observe
 
-class LangfuseSettings(BaseSettings):
-    """Langfuse configuration with validation."""
+@app.post("/search")
+@observe(name="product_search_api")  # ← Cria trace automaticamente
+async def search_product(request: SearchRequest):
+    result = await process_search(request.query)
+    return result
+```
 
-    public_key: str
-    secret_key: str
-    base_url: str = "https://cloud.langfuse.com"
-    enabled: bool = True
-    release: Optional[str] = None
-    sample_rate: float = 1.0
+### Step 4: Capturar trace_id para Propagar
 
-    class Config:
-        env_prefix = "LANGFUSE_"
-        env_file = ".env"
+```python
+from langfuse import observe, get_client
 
-def configure_langfuse() -> None:
-    """Configure Langfuse from environment."""
-    settings = LangfuseSettings()
+@observe(name="product_search_api")
+async def search_product(request: SearchRequest):
+    # Captura trace_id do contexto atual
+    trace_id = None
+    try:
+        langfuse = get_client()
+        trace_id = langfuse.get_current_trace_id()
+    except Exception:
+        pass  # Fallback se Langfuse não disponível
 
-    if not settings.enabled:
-        print("⚠️ Langfuse disabled")
-        return
+    # Passa trace_id para funções internas
+    result = await run_search(request.query, trace_id=trace_id)
+    return result
+```
 
-    os.environ["LANGFUSE_PUBLIC_KEY"] = settings.public_key
-    os.environ["LANGFUSE_SECRET_KEY"] = settings.secret_key
-    os.environ["LANGFUSE_BASE_URL"] = settings.base_url
+### Step 5: Criar Generation para Chamadas LLM
 
-    if settings.release:
-        os.environ["LANGFUSE_RELEASE"] = settings.release
+```python
+from langfuse import get_client
+
+async def call_llm(prompt: str, trace_id: str | None):
+    """Chamada LLM com tracing manual."""
+
+    if trace_id:
+        langfuse = get_client()
+
+        with langfuse.start_as_current_generation(
+            name="llm.analyze_products",
+            model="claude-sonnet-4-20250514",
+            trace_context={"trace_id": trace_id},  # ← Liga ao trace pai
+            input={"prompt_preview": prompt[:500]},
+            metadata={"step": "analysis"},
+        ) as generation:
+
+            # Executa chamada LLM
+            result = await agent.run(prompt)
+
+            # Atualiza com output e tokens
+            usage = result.usage()
+            generation.update(
+                output=result.output.model_dump() if hasattr(result.output, 'model_dump') else str(result.output),
+                usage_details={
+                    "input": usage.request_tokens or 0,
+                    "output": usage.response_tokens or 0,
+                },
+            )
+
+            return result.output
+    else:
+        # Sem tracing
+        result = await agent.run(prompt)
+        return result.output
+```
+
+## Estrutura no Dashboard
+
+```
+product_search_api [TRACE] ← criado pelo @observe
+├── Latency: 5.73s
+├── Cost: $0.000503
+│
+└── llm.analyze_products [GENERATION] ← criado por start_as_current_generation
+    ├── Model: claude-sonnet-4-20250514
+    ├── Input: {prompt_preview, ...}
+    ├── Output: {analysis, reasoning, ...}
+    ├── Tokens: 3,812 → 304 (4,116 total)
+    └── Cost: $0.000503
+```
+
+## Conceitos Principais
+
+| Conceito | O que faz | Como criar |
+|----------|-----------|------------|
+| **Trace** | Container principal (1 por request) | `@observe()` no endpoint |
+| **Generation** | Chamada LLM com tokens/custo | `start_as_current_generation()` |
+| **Span** | Operação genérica (API, DB) | `start_as_current_span()` |
+| **trace_id** | ID para ligar filhos ao pai | `get_client().get_current_trace_id()` |
+
+## Spans para Operações Não-LLM
+
+```python
+from langfuse import get_client
+
+async def fetch_external_api(product_ids: list[int], trace_id: str | None):
+    """API call com tracing."""
+
+    if trace_id:
+        langfuse = get_client()
+
+        with langfuse.start_as_current_span(
+            name="api.fetch_stock",
+            trace_context={"trace_id": trace_id},
+            input={"product_ids": product_ids},
+        ) as span:
+            result = await external_api.get_stock(product_ids)
+
+            span.update(
+                output={"items_found": len(result)},
+                metadata={"api_version": "v2"}
+            )
+
+            return result
+    else:
+        return await external_api.get_stock(product_ids)
 ```
 
 ## Pydantic AI Integration
 
-### Method 1: Global Instrumentation (Recommended)
-```python
-from pydantic_ai.agent import Agent
+### Global Instrumentation (Auto-trace todas as chamadas)
 
-# Instrument ALL agents automatically
-Agent.instrument_all()
-
-# Now all agents are traced
-agent = Agent('openai:gpt-4o')
-result = agent.run_sync("Hello!")  # Automatically traced
-```
-
-### Method 2: Per-Agent Instrumentation
 ```python
 from pydantic_ai import Agent
 
-# Only this agent is traced
-traced_agent = Agent(
-    'openai:gpt-4o',
-    instrument=True  # Enable tracing for this agent
-)
-
-# This agent is NOT traced
-untraced_agent = Agent('openai:gpt-4o')
-```
-
-### Method 3: Custom Instrumentation with @observe
-```python
-from langfuse.decorators import observe, langfuse_context
-
-@observe()  # Creates a span
-def process_user_request(user_input: str) -> str:
-    """Process with full tracing."""
-
-    # Add metadata to current trace
-    langfuse_context.update_current_observation(
-        metadata={"input_length": len(user_input)}
-    )
-
-    result = agent.run_sync(user_input)
-
-    # Add output metadata
-    langfuse_context.update_current_observation(
-        metadata={"output_length": len(result.data)}
-    )
-
-    return result.data
-
-@observe(name="my-pipeline")  # Named span
-def my_pipeline(query: str) -> str:
-    step1 = preprocess(query)
-    step2 = process_user_request(step1)
-    return postprocess(step2)
-```
-
-## Session & User Tracking
-
-### Propagating Attributes
-```python
-from langfuse.decorators import observe
-from langfuse import propagate_attributes
-
-@observe()
-def handle_conversation(
-    user_id: str,
-    session_id: str,
-    message: str
-) -> str:
-    """Track user and session context."""
-
-    with propagate_attributes(
-        user_id=user_id,
-        session_id=session_id,
-        tags=["production", "v1.2"],
-        metadata={
-            "environment": "production",
-            "feature_flag": "new_model"
-        }
-    ):
-        result = agent.run_sync(message)
-        return result.data
-```
-
-### Session Management Pattern
-```python
-from dataclasses import dataclass
-from typing import Optional
-import uuid
-
-@dataclass
-class ConversationContext:
-    """Manage conversation context for tracing."""
-
-    user_id: str
-    session_id: str
-    conversation_id: Optional[str] = None
-
-    @classmethod
-    def new_session(cls, user_id: str) -> "ConversationContext":
-        return cls(
-            user_id=user_id,
-            session_id=f"session_{uuid.uuid4().hex[:8]}",
-            conversation_id=f"conv_{uuid.uuid4().hex[:8]}"
-        )
-
-    def get_trace_attributes(self) -> dict:
-        return {
-            "user_id": self.user_id,
-            "session_id": self.session_id,
-            "tags": [f"conv:{self.conversation_id}"]
-        }
-
-# Usage
-ctx = ConversationContext.new_session("user_123")
-
-with propagate_attributes(**ctx.get_trace_attributes()):
-    response = agent.run_sync("Hello!")
-```
-
-## Complete Tracing Setup
-
-### Full Implementation Pattern
-```python
-"""
-agent_with_tracing.py
-Complete Pydantic AI agent with Langfuse observability.
-"""
-
-import os
-from typing import Any
-from dataclasses import dataclass
-from pydantic_ai import Agent, RunContext
-from langfuse.decorators import observe, langfuse_context
-from langfuse import propagate_attributes
-
-# 1. Configure Langfuse
-os.environ["LANGFUSE_PUBLIC_KEY"] = "pk-lf-..."
-os.environ["LANGFUSE_SECRET_KEY"] = "sk-lf-..."
-os.environ["LANGFUSE_BASE_URL"] = "https://cloud.langfuse.com"
-
-# 2. Enable global instrumentation
+# Instrumenta TODOS os agents automaticamente
 Agent.instrument_all()
 
-# 3. Define dependencies with trace context
-@dataclass
-class TracedDeps:
-    user_id: str
-    session_id: str
-    trace_metadata: dict
+# Agora todas as chamadas são traced
+agent = Agent('anthropic:claude-sonnet-4-20250514')
+result = await agent.run("Hello!")  # Auto-traced
+```
 
-# 4. Create agent
-agent = Agent(
-    'openai:gpt-4o',
-    deps_type=TracedDeps,
-    system_prompt="You are a helpful assistant."
+### Per-Agent Instrumentation
+
+```python
+# Só este agent é traced
+traced_agent = Agent(
+    'anthropic:claude-sonnet-4-20250514',
+    instrument=True
 )
 
-# 5. Add traced tools
-@agent.tool
-@observe(name="search_database")
-async def search_database(
-    ctx: RunContext[TracedDeps],
-    query: str
-) -> str:
-    """Search with tracing."""
+# Este NÃO é traced
+untraced_agent = Agent('anthropic:claude-sonnet-4-20250514')
+```
 
-    langfuse_context.update_current_observation(
-        input={"query": query},
-        metadata={"user_id": ctx.deps.user_id}
-    )
+### Combinando @observe + Agent.instrument_all()
 
-    # Simulate search
-    results = f"Results for: {query}"
+```python
+from langfuse import observe, get_client
+from pydantic_ai import Agent
 
-    langfuse_context.update_current_observation(
-        output={"results": results}
-    )
+Agent.instrument_all()
 
-    return results
+research_agent = Agent('anthropic:claude-sonnet-4-20250514', output_type=ResearchOutput)
 
-# 6. Main execution with full context
-@observe(name="agent_execution")
-async def run_agent(
-    user_id: str,
-    session_id: str,
-    message: str
-) -> str:
-    """Execute agent with full tracing."""
+@observe(name="research_workflow")
+async def research_endpoint(query: str):
+    """Endpoint com trace pai + generations automáticas."""
 
-    deps = TracedDeps(
-        user_id=user_id,
-        session_id=session_id,
-        trace_metadata={"source": "api"}
-    )
+    trace_id = get_client().get_current_trace_id()
 
-    with propagate_attributes(
-        user_id=user_id,
-        session_id=session_id,
-        tags=["agent", "production"]
-    ):
-        result = await agent.run(message, deps=deps)
+    # Agent.instrument_all() cria generations automaticamente
+    # E elas são linkadas ao trace pai via contexto
+    result = await research_agent.run(query)
 
-        # Add final metadata
-        langfuse_context.update_current_trace(
-            metadata={
-                "total_tokens": getattr(result, 'usage', {}).get('total_tokens'),
-                "model": "gpt-4o"
-            }
-        )
-
-        return result.data
+    return result.output
 ```
 
 ## Graph Agent Tracing
 
-### Tracing Multi-Step Graphs
+### Tracing em Nodes do Pydantic Graph
+
 ```python
+from dataclasses import dataclass, field
+from pydantic_graph import BaseNode, End, GraphRunContext
 from pydantic_ai import Agent
-from pydantic_graph import Graph, Node, End
-from langfuse.decorators import observe
-from langfuse import propagate_attributes
+from langfuse import observe, get_client
 
 Agent.instrument_all()
 
-# Each node gets its own span
-@observe(name="analyze_node")
-async def run_analyze_node(state: dict) -> dict:
-    """Analyze step with dedicated span."""
-    result = await analyze_agent.run(state["input"])
-    return {"analysis": result.data}
+@dataclass
+class WorkflowState:
+    query: str = ""
+    trace_id: str | None = None
+    results: list[str] = field(default_factory=list)
 
-@observe(name="generate_node")
-async def run_generate_node(state: dict) -> dict:
-    """Generate step with dedicated span."""
-    result = await generate_agent.run(state["analysis"])
-    return {"output": result.data}
+@dataclass
+class ResearchNode(BaseNode[WorkflowState]):
+    async def run(self, ctx: GraphRunContext[WorkflowState]) -> 'SynthesisNode':
+        # Usa trace_id do state para criar span do node
+        if ctx.state.trace_id:
+            langfuse = get_client()
 
-# Graph execution traced end-to-end
-@observe(name="full_graph_execution")
-async def execute_graph(
-    user_input: str,
-    user_id: str,
-    session_id: str
-) -> str:
-    """Execute graph with hierarchical tracing."""
+            with langfuse.start_as_current_span(
+                name="node.research",
+                trace_context={"trace_id": ctx.state.trace_id},
+                input={"query": ctx.state.query},
+            ) as span:
+                # Agent call é auto-traced e linkado
+                result = await research_agent.run(ctx.state.query)
+                ctx.state.results = result.output.findings
 
-    with propagate_attributes(
+                span.update(output={"findings_count": len(ctx.state.results)})
+
+        else:
+            result = await research_agent.run(ctx.state.query)
+            ctx.state.results = result.output.findings
+
+        return SynthesisNode()
+
+# Iniciar graph com trace_id
+@observe(name="graph_workflow")
+async def run_graph(query: str):
+    trace_id = get_client().get_current_trace_id()
+
+    state = WorkflowState(query=query, trace_id=trace_id)
+    graph = Graph(nodes=[ResearchNode, SynthesisNode])
+
+    return await graph.run(ResearchNode(), state=state)
+```
+
+### Estrutura de Trace para Graphs
+
+```
+graph_workflow [TRACE]
+├── node.research [SPAN]
+│   └── anthropic:claude-sonnet-4-20250514 [GENERATION]
+│       ├── Tokens: 500 → 200
+│       └── Cost: $0.002
+├── node.synthesis [SPAN]
+│   └── anthropic:claude-sonnet-4-20250514 [GENERATION]
+│       ├── Tokens: 800 → 300
+│       └── Cost: $0.003
+└── Total Cost: $0.005
+```
+
+## Session & User Tracking
+
+```python
+from langfuse import observe, get_client
+
+@observe(name="chat_endpoint")
+async def chat(user_id: str, session_id: str, message: str):
+    """Chat com tracking de user e session."""
+
+    langfuse = get_client()
+
+    # Atualiza trace com user/session
+    langfuse.update_current_trace(
         user_id=user_id,
         session_id=session_id,
-        tags=["graph", "multi-step"]
-    ):
-        state = {"input": user_input}
+        tags=["chat", "production"],
+        metadata={"app_version": "1.2.3"}
+    )
 
-        # Each node creates nested spans
-        state = await run_analyze_node(state)
-        state = await run_generate_node(state)
-
-        return state["output"]
-```
-
-### Trace Hierarchy Visualization
-```
-TRACE: full_graph_execution
-├── SPAN: analyze_node
-│   └── GENERATION: openai:gpt-4o (analyze_agent)
-│       ├── input_tokens: 150
-│       ├── output_tokens: 200
-│       └── cost: $0.003
-├── SPAN: generate_node
-│   └── GENERATION: openai:gpt-4o (generate_agent)
-│       ├── input_tokens: 300
-│       ├── output_tokens: 500
-│       └── cost: $0.008
-└── METADATA:
-    ├── user_id: user_123
-    ├── session_id: session_abc
-    └── total_cost: $0.011
+    result = await chat_agent.run(message)
+    return result.output
 ```
 
 ## Evaluations & Scoring
 
-### LLM-as-Judge Evaluation
 ```python
-from langfuse import Langfuse
-from langfuse.decorators import observe, langfuse_context
+from langfuse import get_client
 
-langfuse = Langfuse()
-
-@observe()
-async def run_with_evaluation(query: str) -> str:
-    """Run agent and evaluate quality."""
+async def run_with_evaluation(query: str, trace_id: str):
+    """Executa e avalia qualidade."""
 
     result = await agent.run(query)
 
-    # Get current trace ID for scoring
-    trace_id = langfuse_context.get_current_trace_id()
-
-    # Add LLM-as-Judge evaluation
+    # Adiciona score ao trace
+    langfuse = get_client()
     langfuse.score(
         trace_id=trace_id,
         name="relevance",
-        value=await evaluate_relevance(query, result.data),
-        comment="LLM-evaluated relevance score"
+        value=0.95,
+        comment="Alta relevância para a query"
     )
-
-    langfuse.score(
-        trace_id=trace_id,
-        name="helpfulness",
-        value=await evaluate_helpfulness(result.data),
-        data_type="NUMERIC",  # NUMERIC, BOOLEAN, CATEGORICAL
-    )
-
-    return result.data
-
-async def evaluate_relevance(query: str, response: str) -> float:
-    """Use LLM to evaluate relevance 0-1."""
-    eval_prompt = f"""
-    Query: {query}
-    Response: {response}
-
-    Rate relevance 0-1. Return only the number.
-    """
-    eval_result = await eval_agent.run(eval_prompt)
-    return float(eval_result.data)
-```
-
-### User Feedback Integration
-```python
-def record_user_feedback(
-    trace_id: str,
-    feedback: str,  # "positive" or "negative"
-    comment: Optional[str] = None
-) -> None:
-    """Record user feedback as score."""
 
     langfuse.score(
         trace_id=trace_id,
         name="user_feedback",
-        value=1 if feedback == "positive" else 0,
-        data_type="BOOLEAN",
-        comment=comment
+        value=1,  # 1 = positivo, 0 = negativo
+        data_type="BOOLEAN"
     )
 
-def record_rating(
-    trace_id: str,
-    rating: int,  # 1-5
-    aspect: str = "overall"
-) -> None:
-    """Record numeric rating."""
-
-    langfuse.score(
-        trace_id=trace_id,
-        name=f"rating_{aspect}",
-        value=rating / 5.0,  # Normalize to 0-1
-        data_type="NUMERIC"
-    )
+    return result.output
 ```
 
-## Cost & Performance Tracking
+## Cost Tracking Manual
 
-### Automatic Cost Tracking
 ```python
-# Langfuse automatically tracks costs for supported models
-# Just use instrumented agents
+from langfuse import get_client
 
-Agent.instrument_all()
-
-agent = Agent('openai:gpt-4o')  # Costs auto-tracked
-result = agent.run_sync("Hello!")
-
-# View in Langfuse dashboard:
-# - Input tokens
-# - Output tokens
-# - Total cost per trace
-# - Cost aggregations by user/session
-```
-
-### Custom Cost Tracking
-```python
-from langfuse.decorators import observe, langfuse_context
-
-# Token pricing (example)
+# Pricing por modelo (por 1K tokens)
 PRICING = {
+    "claude-sonnet-4-20250514": {"input": 0.003, "output": 0.015},
     "gpt-4o": {"input": 0.005, "output": 0.015},
-    "gpt-4o-mini": {"input": 0.00015, "output": 0.0006},
-    "claude-3-opus": {"input": 0.015, "output": 0.075},
+    "gemini-2.0-flash": {"input": 0.0001, "output": 0.0004},
 }
 
-@observe()
-async def tracked_call(model: str, prompt: str) -> str:
-    """Call with explicit cost tracking."""
+async def tracked_llm_call(prompt: str, model: str, trace_id: str):
+    langfuse = get_client()
 
-    result = await agent.run(prompt)
+    with langfuse.start_as_current_generation(
+        name=f"llm.{model}",
+        model=model,
+        trace_context={"trace_id": trace_id},
+        input={"prompt": prompt[:500]},
+    ) as generation:
 
-    # Calculate cost
-    usage = result.usage()
-    input_cost = (usage.request_tokens / 1000) * PRICING[model]["input"]
-    output_cost = (usage.response_tokens / 1000) * PRICING[model]["output"]
-    total_cost = input_cost + output_cost
+        result = await agent.run(prompt)
+        usage = result.usage()
 
-    # Update observation with cost
-    langfuse_context.update_current_observation(
-        usage={
-            "input": usage.request_tokens,
-            "output": usage.response_tokens,
-            "total": usage.total_tokens,
-            "unit": "TOKENS"
-        },
-        metadata={
-            "cost_input": input_cost,
-            "cost_output": output_cost,
-            "cost_total": total_cost,
-            "model": model
-        }
-    )
+        # Calcula custo
+        input_cost = (usage.request_tokens / 1000) * PRICING[model]["input"]
+        output_cost = (usage.response_tokens / 1000) * PRICING[model]["output"]
 
-    return result.data
-```
+        generation.update(
+            output=str(result.output),
+            usage_details={
+                "input": usage.request_tokens,
+                "output": usage.response_tokens,
+            },
+            metadata={
+                "cost_input": input_cost,
+                "cost_output": output_cost,
+                "cost_total": input_cost + output_cost,
+            }
+        )
 
-### Performance Monitoring
-```python
-import time
-from langfuse.decorators import observe, langfuse_context
-
-@observe()
-async def monitored_pipeline(input: str) -> str:
-    """Pipeline with performance metrics."""
-
-    start = time.time()
-
-    # Step 1
-    step1_start = time.time()
-    result1 = await step1(input)
-    step1_duration = time.time() - step1_start
-
-    # Step 2
-    step2_start = time.time()
-    result2 = await step2(result1)
-    step2_duration = time.time() - step2_start
-
-    total_duration = time.time() - start
-
-    # Record performance metrics
-    langfuse_context.update_current_trace(
-        metadata={
-            "duration_total_ms": total_duration * 1000,
-            "duration_step1_ms": step1_duration * 1000,
-            "duration_step2_ms": step2_duration * 1000,
-            "p50_target_ms": 1000,
-            "p99_target_ms": 5000
-        }
-    )
-
-    return result2
+        return result.output
 ```
 
 ## Production Patterns
 
-### Sampling for High-Volume
+### Sampling para Alto Volume
+
 ```python
 import random
-from langfuse.decorators import observe
+from langfuse import observe
 
-SAMPLE_RATE = 0.1  # Trace 10% of requests
+SAMPLE_RATE = 0.1  # Trace 10% dos requests
 
-def should_trace() -> bool:
-    return random.random() < SAMPLE_RATE
-
-@observe(enabled=should_trace)
-async def high_volume_endpoint(request: str) -> str:
-    """Only traces 10% of requests."""
+@observe(enabled=lambda: random.random() < SAMPLE_RATE)
+async def high_volume_endpoint(request: str):
+    """Só faz trace de 10% dos requests."""
     return await agent.run(request)
 ```
 
 ### Error Tracking
-```python
-from langfuse.decorators import observe, langfuse_context
 
-@observe()
-async def safe_agent_call(prompt: str) -> str:
-    """Agent call with error tracking."""
+```python
+from langfuse import observe, get_client
+
+@observe(name="safe_agent_call")
+async def safe_agent_call(prompt: str):
+    """Agent call com error tracking."""
 
     try:
         result = await agent.run(prompt)
 
-        langfuse_context.update_current_observation(
+        get_client().update_current_observation(
             level="DEFAULT",
             status_message="Success"
         )
 
-        return result.data
+        return result.output
 
     except Exception as e:
-        # Log error to Langfuse
-        langfuse_context.update_current_observation(
+        get_client().update_current_observation(
             level="ERROR",
             status_message=str(e),
             metadata={
@@ -609,87 +442,153 @@ async def safe_agent_call(prompt: str) -> str:
         raise
 ```
 
-### Async Flush for Serverless
+### Flush para Serverless
+
 ```python
-from langfuse import Langfuse
+from langfuse import get_client
 
-langfuse = Langfuse()
-
-async def serverless_handler(event: dict) -> dict:
-    """Lambda/Cloud Function handler."""
+async def lambda_handler(event: dict):
+    """Lambda handler com flush."""
 
     try:
         result = await run_agent(event["input"])
         return {"statusCode": 200, "body": result}
     finally:
-        # CRITICAL: Flush before function ends
-        langfuse.flush()
+        # CRÍTICO: Flush antes da função terminar
+        get_client().flush()
+```
+
+## Helper Class Completa
+
+```python
+from dataclasses import dataclass
+from langfuse import observe, get_client
+from typing import Any
+
+@dataclass
+class LangfuseTracer:
+    """Helper para tracing consistente."""
+
+    trace_id: str | None = None
+
+    @classmethod
+    def from_current_context(cls) -> "LangfuseTracer":
+        """Cria tracer do contexto atual."""
+        try:
+            trace_id = get_client().get_current_trace_id()
+        except Exception:
+            trace_id = None
+        return cls(trace_id=trace_id)
+
+    def generation(self, name: str, model: str, **kwargs):
+        """Context manager para LLM generation."""
+        if not self.trace_id:
+            return nullcontext()
+
+        return get_client().start_as_current_generation(
+            name=name,
+            model=model,
+            trace_context={"trace_id": self.trace_id},
+            **kwargs
+        )
+
+    def span(self, name: str, **kwargs):
+        """Context manager para span genérico."""
+        if not self.trace_id:
+            return nullcontext()
+
+        return get_client().start_as_current_span(
+            name=name,
+            trace_context={"trace_id": self.trace_id},
+            **kwargs
+        )
+
+    def score(self, name: str, value: float, **kwargs):
+        """Adiciona score ao trace."""
+        if not self.trace_id:
+            return
+
+        get_client().score(
+            trace_id=self.trace_id,
+            name=name,
+            value=value,
+            **kwargs
+        )
+
+# Uso
+@observe(name="my_endpoint")
+async def my_endpoint(query: str):
+    tracer = LangfuseTracer.from_current_context()
+
+    with tracer.generation("llm.research", "claude-sonnet-4-20250514", input={"query": query}) as gen:
+        result = await agent.run(query)
+        gen.update(output=str(result.output))
+
+    tracer.score("quality", 0.9)
+
+    return result.output
 ```
 
 ## Checklist
 
-### Setup Checklist
-- [ ] Environment variables configured
-- [ ] `Agent.instrument_all()` called at startup
-- [ ] User ID tracking implemented
-- [ ] Session ID for conversations
-- [ ] Error handling with Langfuse logging
+### Setup
+- [ ] `pip install "langfuse>=3.0.0"`
+- [ ] Env vars: `LANGFUSE_PUBLIC_KEY`, `LANGFUSE_SECRET_KEY`, `LANGFUSE_HOST`
+- [ ] `@observe()` no endpoint principal
+- [ ] `get_client().get_current_trace_id()` para propagar
 
-### Production Checklist
-- [ ] Sampling configured for high volume
-- [ ] Async flush for serverless
-- [ ] Cost tracking verified
-- [ ] Evaluations pipeline setup
-- [ ] Alerts configured in dashboard
-- [ ] Data retention policy set
+### Production
+- [ ] Sampling configurado para alto volume
+- [ ] `flush()` em serverless
+- [ ] Error tracking implementado
+- [ ] User/session tracking
+- [ ] Cost tracking verificado
 
-### Debug Checklist
-- [ ] `LANGFUSE_DEBUG=true` for verbose logs
-- [ ] Check trace appears in dashboard
-- [ ] Verify spans are nested correctly
-- [ ] Confirm costs are calculated
-- [ ] Test evaluation scores
+### Debug
+- [ ] Trace aparece no dashboard
+- [ ] Generations linkadas ao trace pai
+- [ ] Tokens e custos calculados
+- [ ] Scores registrados
 
 ## Output Format
 
 ```
 ⚡ SKILL_ACTIVATED: #TRAC-7K4M
 
-## Tracing Implementation: [Component]
+## Tracing: [Component]
 
-### Configuration
-| Setting | Value |
-|---------|-------|
-| Base URL | [URL] |
-| Sample Rate | [X]% |
-| Instrumentation | [global/per-agent] |
+### Setup
+```python
+from langfuse import observe, get_client
+
+@observe(name="endpoint")
+async def endpoint():
+    trace_id = get_client().get_current_trace_id()
+    ...
+```
 
 ### Trace Structure
-[Hierarchy diagram]
+```
+endpoint [TRACE]
+├── operation [SPAN]
+└── llm_call [GENERATION]
+```
 
 ### Implementation
-[Code with @observe decorators]
-
-### Evaluations
-| Type | Metric | Target |
-|------|--------|--------|
-| [Type] | [Name] | [Value] |
-
-### Cost Tracking
-| Metric | Formula |
-|--------|---------|
-| Input Cost | tokens/1000 × $[X] |
-| Output Cost | tokens/1000 × $[X] |
+- [ ] @observe no endpoint
+- [ ] trace_id propagado
+- [ ] Generations para LLM calls
+- [ ] Spans para operações
 
 → CHAIN: Ready for agent-audit-graph
 ```
 
 ## Common Mistakes
 
-- Forgetting to call `flush()` in serverless
-- Not propagating user_id/session_id
-- Tracing 100% in high-volume production
-- Not handling trace errors gracefully
-- Missing cost tracking configuration
-- Ignoring evaluation setup
-- Not testing trace hierarchy
+- Usar `LANGFUSE_BASE_URL` em vez de `LANGFUSE_HOST` (v3)
+- Não propagar `trace_id` para funções filhas
+- Esquecer `trace_context={"trace_id": trace_id}` em generations
+- Não chamar `flush()` em serverless
+- Tracing 100% em produção de alto volume
+- Usar `langfuse_context` (v2) em vez de `get_client()` (v3)
+- Não atualizar generation com `usage_details`
