@@ -1,0 +1,49 @@
+{
+  "skills": [
+    {
+      "name": "agent-teams-manager",
+      "priority": 1,
+      "pattern": "\\btime\\b.*agent|\\bagent.*time\\b|\\bteam\\b|\\bmulti.?agent\\b|\\bswarm\\b|\\bequipe\\b|\\bsquad\\b|\\bmontar.?time\\b|\\bcriar.?time\\b|\\bagent.?teams\\b|\\bparalelo\\b.*agent|\\bagentes?.?em.?paralelo\\b|\\bcriar.?agents\\b|\\bcria.?dois\\b|\\bcria.?tres\\b|\\bcria.?quatro\\b|\\bmontar.?equipe\\b|\\btime.?de.?dev\\b|\\borquestrar\\b|\\bcoordenar.?agents\\b",
+      "enforce": "CRITICAL: Criar TEAMMATES REAIS com Agent(team_name=X, name=Y). NUNCA usar run_in_background=true. NUNCA usar isolation=worktree. SEMPRE TeamCreate ANTES de spawnar. SEMPRE TaskCreate ANTES de spawnar.",
+      "path": "~/.claude/skills/agent-teams-manager/SKILL.md"
+    },
+    {
+      "name": "forge",
+      "priority": 2,
+      "pattern": "\\bforge\\b|\\/forge\\b|criar.?skill|criar.?agent|criar.?hook|criar.?command|novo.?construtor|scaffoldar|playbook.?construtor|forge.?skill|forge.?agent|forge.?hook|forge.?command|forge.?audit|forge.?team",
+      "enforce": "Identificar qual construtor o usuario precisa (skill/agent/hook/command/team/audit) e seguir o workflow correspondente.",
+      "path": "~/.claude/skills/forge/SKILL.md"
+    },
+    {
+      "name": "sgi-dev",
+      "priority": 10,
+      "pattern": "\\bsgi\\b|\\bassessorado\\b|\\bfundiario\\b|\\bplanejamento\\b|\\boferta\\b|\\bofertas\\b|\\bconfigurac[aã]o\\b|\\bcalendario\\b|\\brotina\\b|\\bsafra\\b|\\bhistorico\\b|\\bgrupo.?familiar\\b",
+      "enforce": "Use SGI patterns, create in correct locations, follow conventions.",
+      "chain": "code-review-sgi",
+      "path": "~/.claude/skills/sgi-dev/SKILL.md"
+    },
+    {
+      "name": "sgi-uxui",
+      "priority": 9,
+      "pattern": "\\buxui\\b|\\bux.?ui\\b|\\bmicro.?intera[cç][aã]o\\b|\\banima[cç][aã]o\\b|\\bhover\\b|\\btransi[cç][aã]o\\b|\\bdark.?mode\\b|\\bskeleton\\b|\\bloading.?state\\b",
+      "enforce": "Bootstrap 5.3 + SCSS patterns, micro-interacoes, dark mode, animacoes suaves.",
+      "path": "~/.claude/skills/sgi-uxui/SKILL.md"
+    },
+    {
+      "name": "receita-dev",
+      "priority": 10,
+      "pattern": "\\breceita\\b|\\breceitas\\b|revenue|income|financiamento|pagamento.?produto|criar.?receita|desenvolver.?receita|feature.?receita",
+      "enforce": "Mobile first, reutilizar componentes, padroes /pedido, web+mobile.",
+      "chain": "code-review-agrino",
+      "path": "~/.claude/skills/receita-dev/SKILL.md"
+    },
+    {
+      "name": "price-dev",
+      "priority": 10,
+      "pattern": "\\bprice\\b|\\binova.?price\\b|desenvolver.?price|criar.?feature.?price|implementar.?price",
+      "enforce": "Desenvolvimento GOLD STANDARD - Zero any, kebab-case, hooks encapsulados, service layer.",
+      "chain": "price-review",
+      "path": "~/.claude/skills/price-dev/SKILL.md"
+    }
+  ]
+}

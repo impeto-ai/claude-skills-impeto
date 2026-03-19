@@ -1,88 +1,197 @@
 #!/bin/bash
-# ImpetOS Skills - Instalador Automático
+# ImpetOS Skills — Instalador Global
 # Uso: curl -fsSL https://raw.githubusercontent.com/impeto-ai/claude-skills-impeto/main/install.sh | bash
+#
+# O que faz:
+#   1. Clona o repo em ~/.claude/impeto-skills/
+#   2. Copia skills, agents e hooks pra ~/.claude/ (sem sobrescrever)
+#   3. Configura o hook do skill-activator no settings.json
+#
+# Pra atualizar: ~/.claude/impeto-skills/install.sh --update
 
 set -e
 
 REPO="https://github.com/impeto-ai/claude-skills-impeto.git"
-CLAUDE_DIR=".claude"
+INSTALL_DIR="$HOME/.claude/impeto-skills"
+CLAUDE_DIR="$HOME/.claude"
 
-echo "⚡ ImpetOS Skills Installer"
-echo "=========================="
+echo ""
+echo "  ImpetOS Skills Installer"
+echo "  ========================"
+echo ""
 
-# Verifica se está em um projeto com .claude
-if [ ! -d "$CLAUDE_DIR" ]; then
-    echo "📁 Criando pasta .claude..."
-    mkdir -p "$CLAUDE_DIR"
+# -------------------------------------------------------
+# 1. Verificar dependencias
+# -------------------------------------------------------
+if ! command -v git &>/dev/null; then
+  echo "ERRO: git nao encontrado. Instale git primeiro."
+  exit 1
 fi
 
-# Baixa o repo
-echo "📥 Baixando skills..."
-TMP_DIR=$(mktemp -d)
-git clone --depth 1 "$REPO" "$TMP_DIR" 2>/dev/null
+if ! command -v jq &>/dev/null; then
+  echo "AVISO: jq nao encontrado. Instalando..."
+  if command -v brew &>/dev/null; then
+    brew install jq
+  elif command -v apt-get &>/dev/null; then
+    sudo apt-get install -y jq
+  else
+    echo "ERRO: Instale jq manualmente (https://jqlang.github.io/jq/download/)"
+    exit 1
+  fi
+fi
 
-# Copia skills e hooks
-echo "📦 Instalando 45 skills..."
-cp -r "$TMP_DIR/skills" "$CLAUDE_DIR/"
-cp -r "$TMP_DIR/hooks" "$CLAUDE_DIR/"
+# -------------------------------------------------------
+# 2. Criar pastas se nao existem
+# -------------------------------------------------------
+mkdir -p "$CLAUDE_DIR/skills"
+mkdir -p "$CLAUDE_DIR/agents"
+mkdir -p "$CLAUDE_DIR/hooks"
+mkdir -p "$CLAUDE_DIR/backups"
 
-# Limpa temp
-rm -rf "$TMP_DIR"
+# -------------------------------------------------------
+# 3. Clonar ou atualizar o repo
+# -------------------------------------------------------
+if [ -d "$INSTALL_DIR/.git" ]; then
+  echo "[1/5] Atualizando repo..."
+  cd "$INSTALL_DIR" && git pull --quiet
+else
+  echo "[1/5] Clonando repo..."
+  git clone --quiet "$REPO" "$INSTALL_DIR"
+fi
 
-# Configura settings.json
-SETTINGS_FILE="$CLAUDE_DIR/settings.json"
-HOOK_CONFIG='{
+# -------------------------------------------------------
+# 4. Copiar skills (sem sobrescrever existentes)
+# -------------------------------------------------------
+echo "[2/5] Instalando skills..."
+SKILLS_NEW=0
+SKILLS_SKIP=0
+
+for skill_dir in "$INSTALL_DIR/skills"/*/; do
+  skill_name=$(basename "$skill_dir")
+  target="$CLAUDE_DIR/skills/$skill_name"
+
+  if [ -d "$target" ] || [ -L "$target" ]; then
+    SKILLS_SKIP=$((SKILLS_SKIP + 1))
+  else
+    cp -r "$skill_dir" "$target"
+    SKILLS_NEW=$((SKILLS_NEW + 1))
+  fi
+done
+
+echo "   $SKILLS_NEW novas | $SKILLS_SKIP ja existiam"
+
+# -------------------------------------------------------
+# 5. Copiar agents (sem sobrescrever existentes)
+# -------------------------------------------------------
+echo "[3/5] Instalando agents..."
+AGENTS_NEW=0
+
+if [ -d "$INSTALL_DIR/agents" ]; then
+  for agent_file in "$INSTALL_DIR/agents"/*.md; do
+    [ -f "$agent_file" ] || continue
+    agent_name=$(basename "$agent_file")
+    target="$CLAUDE_DIR/agents/$agent_name"
+
+    if [ -f "$target" ]; then
+      echo "   SKIP: $agent_name (ja existe)"
+    else
+      cp "$agent_file" "$target"
+      AGENTS_NEW=$((AGENTS_NEW + 1))
+      echo "   + $agent_name"
+    fi
+  done
+fi
+
+echo "   $AGENTS_NEW agents instalados"
+
+# -------------------------------------------------------
+# 6. Copiar hooks (com backup se existir)
+# -------------------------------------------------------
+echo "[4/5] Instalando hooks..."
+
+for hook_file in "$INSTALL_DIR/hooks"/*; do
+  [ -f "$hook_file" ] || continue
+  hook_name=$(basename "$hook_file")
+  target="$CLAUDE_DIR/hooks/$hook_name"
+
+  if [ -f "$target" ]; then
+    # Backup do existente
+    cp "$target" "$CLAUDE_DIR/backups/${hook_name}.bak.$(date +%Y%m%d%H%M%S)"
+    echo "   ~ $hook_name (backup + atualizado)"
+  else
+    echo "   + $hook_name"
+  fi
+
+  cp "$hook_file" "$target"
+done
+
+chmod +x "$CLAUDE_DIR/hooks"/*.sh 2>/dev/null
+
+# -------------------------------------------------------
+# 7. Configurar settings.json com hook do activator
+# -------------------------------------------------------
+echo "[5/5] Configurando settings.json..."
+
+SETTINGS="$CLAUDE_DIR/settings.json"
+
+if [ -f "$SETTINGS" ]; then
+  # Verifica se ja tem o hook configurado
+  if jq -e '.hooks.UserPromptSubmit' "$SETTINGS" &>/dev/null; then
+    if grep -q "skill-activator.sh" "$SETTINGS" 2>/dev/null; then
+      echo "   Hook ja configurado"
+    else
+      # Adiciona o hook ao array existente
+      cp "$SETTINGS" "$CLAUDE_DIR/backups/settings.json.bak.$(date +%Y%m%d%H%M%S)"
+      jq '.hooks.UserPromptSubmit += [{"matcher":"","hooks":[{"type":"command","command":"~/.claude/hooks/skill-activator.sh"}]}]' "$SETTINGS" > "${SETTINGS}.tmp"
+      mv "${SETTINGS}.tmp" "$SETTINGS"
+      echo "   Hook adicionado ao settings.json"
+    fi
+  else
+    # Cria a seção hooks
+    cp "$SETTINGS" "$CLAUDE_DIR/backups/settings.json.bak.$(date +%Y%m%d%H%M%S)"
+    jq '. + {"hooks":{"UserPromptSubmit":[{"matcher":"","hooks":[{"type":"command","command":"~/.claude/hooks/skill-activator.sh"}]}]}}' "$SETTINGS" > "${SETTINGS}.tmp"
+    mv "${SETTINGS}.tmp" "$SETTINGS"
+    echo "   Seção hooks criada no settings.json"
+  fi
+else
+  # Cria settings.json minimo
+  cat > "$SETTINGS" << 'SETTINGS_EOF'
+{
   "hooks": {
     "UserPromptSubmit": [
       {
-        "hooks": [{
-          "type": "command",
-          "command": "bash .claude/hooks/skill-activator.sh"
-        }]
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "~/.claude/hooks/skill-activator.sh"
+          }
+        ]
       }
     ]
   }
-}'
-
-if [ -f "$SETTINGS_FILE" ]; then
-    echo "⚙️  Atualizando settings.json..."
-    # Verifica se já tem o hook
-    if grep -q "skill-activator.sh" "$SETTINGS_FILE" 2>/dev/null; then
-        echo "✓ Hook já configurado"
-    else
-        # Faz backup e merge
-        cp "$SETTINGS_FILE" "$SETTINGS_FILE.backup"
-
-        # Tenta merge com jq, senão sobrescreve
-        if command -v jq &> /dev/null; then
-            jq -s '.[0] * .[1]' "$SETTINGS_FILE" <(echo "$HOOK_CONFIG") > "$SETTINGS_FILE.tmp"
-            mv "$SETTINGS_FILE.tmp" "$SETTINGS_FILE"
-        else
-            # Sem jq, adiciona manualmente se for JSON simples
-            echo "$HOOK_CONFIG" > "$SETTINGS_FILE"
-            echo "⚠️  settings.json sobrescrito (instale jq para merge)"
-        fi
-    fi
-else
-    echo "⚙️  Criando settings.json..."
-    echo "$HOOK_CONFIG" > "$SETTINGS_FILE"
+}
+SETTINGS_EOF
+  echo "   settings.json criado"
 fi
 
-# Torna hook executável
-chmod +x "$CLAUDE_DIR/hooks/skill-activator.sh"
+# -------------------------------------------------------
+# Done
+# -------------------------------------------------------
+TOTAL_SKILLS=$(ls -d "$CLAUDE_DIR/skills"/*/ 2>/dev/null | wc -l | tr -d ' ')
+TOTAL_AGENTS=$(ls "$CLAUDE_DIR/agents"/*.md 2>/dev/null | wc -l | tr -d ' ')
 
 echo ""
-echo "✅ ImpetOS Skills instalado com sucesso!"
+echo "  Instalacao completa!"
 echo ""
-echo "📊 45 skills em 6 tiers:"
-echo "   TIER 1: Core Development (5)"
-echo "   TIER 2: Collaboration (4)"
-echo "   TIER 3: Git/DevOps (3)"
-echo "   TIER 4: AI Agents (11)  ← NEW: agent-tracing-langfuse"
-echo "   TIER 5: Development (11)"
-echo "   TIER 6: Business (11)"
+echo "  Skills:  $TOTAL_SKILLS"
+echo "  Agents:  $TOTAL_AGENTS"
+echo "  Hooks:   skill-activator.sh + skill-triggers.json"
 echo ""
-echo "🚀 Teste agora! Digite no Claude Code:"
-echo "   'tenho um bug' → systematic-debugging"
-echo "   'criar proposta' → proposal-builder"
+echo "  Para atualizar:"
+echo "    cd ~/.claude/impeto-skills && git pull && bash install.sh --update"
+echo ""
+echo "  Teste agora no Claude Code:"
+echo "    'forge skill'    -> cria nova skill"
+echo "    'monta um time'  -> agent teams manager"
 echo ""
