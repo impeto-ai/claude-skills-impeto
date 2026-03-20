@@ -185,6 +185,36 @@ Confirma? (posso ajustar antes de criar)
 
 ## FASE 3: Criação e Execução
 
+### PASSO 0 — Verificar tmux (OBRIGATÓRIO antes de criar)
+
+Antes de criar o time, verificar se estamos dentro do tmux:
+
+```bash
+echo "TMUX=$TMUX"
+```
+
+| Resultado | Significado | Ação |
+|---|---|---|
+| `TMUX=/private/tmp/tmux-501/default,...` | Dentro do tmux | Prosseguir — teammates abrem em panes |
+| `TMUX=` (vazio) | FORA do tmux | AVISAR o usuário |
+
+Se TMUX está **vazio**, informar:
+
+```
+⚠️ Você NÃO está dentro do tmux.
+
+Os teammates vão funcionar em modo in-process (shift+↑/↓ pra navegar).
+Para abrir em panes tmux separados:
+  1. Saia do Claude Code (/exit)
+  2. Entre no tmux: tmux
+  3. Inicie o Claude Code: claude
+  4. Peça pra montar o time de novo
+
+Quer continuar em modo in-process ou prefere reiniciar no tmux?
+```
+
+**SEMPRE** perguntar antes de prosseguir. Não criar teammates silenciosamente em modo in-process se o usuário espera tmux.
+
 ### PASSO 1 — TeamCreate
 
 ```json
