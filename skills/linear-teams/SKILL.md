@@ -8,6 +8,26 @@ chain: none
 
 O lead agent vira PM/PO: lê issues do Linear, planeja o time, spawna teammates, coordena execução, e atualiza o Linear automaticamente.
 
+## Hierarquia Impeto (referência: linear-pm)
+
+```
+Initiative → Project → Milestone (Épico) → Issue (Task) → Sub-issue
+```
+
+O lead opera no nível de **Project/Milestone**: lê issues de um milestone, distribui pra teammates. Cada teammate executa issues e sub-issues.
+
+## Workflow de estados (INVIOLÁVEL)
+
+```
+Backlog → To Do → In Progress → In Review → Done
+                                  🔒 GATE HUMANO
+```
+
+- Teammates movem até **In Review** — NUNCA até Done
+- Toda issue em Review DEVE ter: label Claude + comentário detalhado + insights
+
+---
+
 ## Fluxo completo
 
 ```
