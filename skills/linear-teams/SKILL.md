@@ -389,6 +389,224 @@ TeamDelete({})
 
 ---
 
+## CONVENÇÃO DE ISSUES — Padrão Impeto
+
+### Criação de Issues (quando o Claude cria novas)
+
+**Título:** verbo imperativo + objeto claro
+```
+✅ Implementar endpoint de relatórios
+✅ Corrigir validação de CPF no formulário
+✅ Adicionar paginação na listagem de pedidos
+✗ Relatórios (vago)
+✗ Bug do CPF (sem contexto)
+```
+
+**Description obrigatória:**
+```markdown
+## Contexto
+{Por que essa issue existe. Link pra issue pai se for sub-issue.}
+
+## Critérios de Aceite
+- [ ] {Critério 1 — verificável}
+- [ ] {Critério 2 — verificável}
+- [ ] {Critério 3 — verificável}
+
+## Notas Técnicas
+{Stack, arquivos que provavelmente serão tocados, dependências.}
+
+## Estimate
+{1, 2, 3, 5, 8 ou 13 pontos — baseado em complexidade}
+```
+
+**Labels obrigatórias:**
+- Domínio: `frontend` | `backend` | `ai` | `devops`
+- Tipo: `Feature` | `Improvement` | `Bug`
+- Se feita por Claude: `Claude` (adicionada ao mover pra Review)
+
+**Priority:**
+- 1 (Urgent): bloqueia outros, precisa hoje
+- 2 (High): importante, essa semana
+- 3 (Medium): planejado, tem prazo
+- 4 (Low): nice to have
+
+---
+
+### Comentários — Template por situação
+
+#### Ao INICIAR uma issue (In Progress)
+
+```markdown
+## ▶️ Iniciando execução
+
+**Executado por:** {teammate-name} (Claude Code)
+**Abordagem planejada:**
+- {Passo 1}
+- {Passo 2}
+- {Passo 3}
+
+**Arquivos que serão tocados:**
+- `{path/file1}`
+- `{path/file2}`
+
+**Estimativa de sub-tarefas:** {N} steps
+```
+
+#### Ao CONCLUIR uma issue (movendo pra In Review)
+
+```markdown
+## 🤖 Executada por Claude Code
+
+### O que foi feito
+- {Descrição clara de cada mudança, não lista de arquivos}
+- {Decisão técnica tomada e por quê}
+- {Padrão seguido ou referência usada}
+
+### Arquivos alterados
+| Arquivo | Mudança | Linhas |
+|---|---|---|
+| `src/api/reports.ts` | Novo endpoint GET /reports | +85 |
+| `src/services/report.service.ts` | Service com query paginada | +120 |
+| `src/types/report.ts` | Tipos TypeScript | +25 |
+
+### Métricas
+- **Linhas adicionadas:** {N}
+- **Linhas removidas:** {N}
+- **Arquivos tocados:** {N}
+- **Tempo de execução:** {estimado}
+
+### Testes
+- {Quais testes rodou e resultado}
+- {Se não rodou, por quê}
+- {Cobertura se disponível}
+
+### Insights e Observações
+- 💡 {Insight 1: algo que descobriu durante a implementação}
+- ⚠️ {Risco ou débito técnico identificado}
+- 🔗 {Dependência ou impacto em outras issues}
+- 📊 {Sugestão de melhoria futura}
+
+### Trade-offs
+- {Escolhi A em vez de B porque...}
+- {Poderia ser melhor se..., mas priorizei...}
+
+### Para o Revisor
+- [ ] Verificar {ponto crítico 1}
+- [ ] Validar {ponto crítico 2}
+- [ ] Testar {cenário edge case}
+
+### Status
+✅ Pronto para revisão humana
+```
+
+#### Quando BLOQUEADO
+
+```markdown
+## 🔒 Bloqueado
+
+**Motivo:** {descrição clara do bloqueio}
+**Depende de:** {identifier da issue bloqueante}
+**Impacto:** {o que não pode prosseguir}
+**Sugestão:** {como desbloquear}
+```
+
+#### Quando encontra BUG durante execução
+
+```markdown
+## 🐛 Bug encontrado durante execução de {IDENTIFIER}
+
+**Encontrado em:** `{arquivo:linha}`
+**Comportamento esperado:** {X}
+**Comportamento atual:** {Y}
+**Reprodução:** {passos}
+**Severidade:** {critical/high/medium/low}
+**Sugestão de fix:** {se tiver}
+
+> Issue separada criada: {NEW-IDENTIFIER}
+```
+
+---
+
+### Tags e Labels — Convenção
+
+| Situação | Labels a adicionar |
+|---|---|
+| Issue criada por humano, executada por Claude | `Claude` + label de domínio |
+| Issue criada E executada por Claude | `Claude` + `Feature`/`Bug`/`Improvement` + domínio |
+| Sub-issue de uma issue Claude | `Claude` (herda labels do pai) |
+| Bug encontrado durante execução | `Bug` + `Claude` + domínio |
+| Issue que teve retrabalho (Review → In Progress) | Manter `Claude`, adicionar comentário explicando |
+
+---
+
+### Convenção de Branch e Commit (quando teammate faz git)
+
+**Branch:**
+```
+feat/{IDENTIFIER}-{slug}     → feat/IA-42-dashboard-reports
+fix/{IDENTIFIER}-{slug}      → fix/IA-45-responsive-mobile
+chore/{IDENTIFIER}-{slug}    → chore/IA-50-setup-ci
+```
+
+**Commit:**
+```
+feat: implementar endpoint de relatórios [IA-42]
+fix: corrigir overflow no carousel mobile [IA-45]
+refactor: extrair service de reports [IA-42]
+test: adicionar testes do endpoint reports [IA-42]
+```
+
+**PR body:**
+```markdown
+## Linear
+Closes IA-42
+
+## O que foi feito
+- Implementado endpoint GET /api/reports com paginação
+- Service layer com queries otimizadas
+- Tipos TypeScript para response
+
+## Test plan
+- [ ] GET /api/reports retorna lista paginada
+- [ ] Filtro por data funciona
+- [ ] Paginação com cursor funciona
+- [ ] Sem auth retorna 401
+
+🤖 Executada por Claude Code (teammate: backend-dev)
+```
+
+---
+
+### Insights obrigatórios — o que o Claude DEVE reportar
+
+Ao concluir CADA issue, o teammate DEVE incluir no comentário pelo menos 2 insights de cada categoria:
+
+**💡 Descobertas (o que aprendeu):**
+- Padrões existentes no código que seguiu
+- Convenções que identificou e respeitou
+- Código relacionado que pode ser impactado
+
+**⚠️ Riscos (o que pode dar errado):**
+- Edge cases não cobertos
+- Performance em escala
+- Dependências frágeis
+- Dados que podem estar inconsistentes
+
+**📊 Sugestões (o que poderia melhorar):**
+- Refatorações que fariam sentido
+- Testes que deveriam existir
+- Documentação que está faltando
+- Abstrações que poderiam ser criadas
+
+**🔗 Conexões (impacto em outras partes):**
+- Outras issues que podem ser afetadas
+- Componentes que compartilham lógica
+- APIs que consumidores dependem
+
+Esses insights são o **diferencial** — o revisor humano recebe não só o código, mas a análise do Claude sobre o que fez e por quê.
+
+---
+
 ## Regras de Ouro
 
 1. **Lead = PM/PO** — nunca coda, só coordena
