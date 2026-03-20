@@ -1,19 +1,69 @@
 #!/bin/bash
-# ImpetOS Skills — Instalador Global
+# ImpetOS Skills — Instalador Global (essenciais)
 # Uso: curl -fsSL https://raw.githubusercontent.com/impeto-ai/claude-skills-impeto/main/install.sh | bash
 #
-# O que faz:
-#   1. Clona o repo em ~/.claude/impeto-skills/
-#   2. Copia skills, agents e hooks pra ~/.claude/ (sem sobrescrever)
-#   3. Configura o hook do skill-activator no settings.json
-#
-# Pra atualizar: ~/.claude/impeto-skills/install.sh --update
+# Instala apenas skills essenciais pro time.
+# Skills extras ficam no repo pra quem quiser instalar manualmente.
 
 set -e
 
 REPO="https://github.com/impeto-ai/claude-skills-impeto.git"
 INSTALL_DIR="$HOME/.claude/impeto-skills"
 CLAUDE_DIR="$HOME/.claude"
+
+# -------------------------------------------------------
+# Skills essenciais (whitelist)
+# -------------------------------------------------------
+ESSENTIAL_SKILLS=(
+  # Meta / Construtores
+  "forge"
+  "agent-teams-manager"
+  "skill-creator"
+  "dispatching-parallel-agents"
+
+  # Linear (gestão de projetos)
+  "linear-init"
+  "linear-pm"
+  "linear-work"
+  "linear-teams"
+
+  # Dev Workflow
+  "systematic-debugging"
+  "clean-code"
+  "writing-plans"
+  "executing-plans"
+  "verification-before-completion"
+  "test-driven-development"
+
+  # Git
+  "git-specialist"
+  "finishing-a-development-branch"
+
+  # Code Review
+  "code-reviewer"
+  "requesting-code-review"
+  "receiving-code-review"
+
+  # Next.js
+  "nextjs-architect"
+
+  # Infra
+  "database-migrations"
+  "security-hardening"
+  "ci-cd-pipeline"
+  "docker-optimizer"
+
+  # Testes
+  "testing-strategy"
+  "playwright-e2e-testing"
+
+  # API
+  "api-design"
+
+  # Brainstorming
+  "brainstorming"
+  "brainstorming-dev"
+)
 
 echo ""
 echo "  ImpetOS Skills Installer"
@@ -41,10 +91,9 @@ if ! command -v jq &>/dev/null; then
 fi
 
 # -------------------------------------------------------
-# 2. Criar pastas se nao existem
+# 2. Criar pastas
 # -------------------------------------------------------
 mkdir -p "$CLAUDE_DIR/skills"
-mkdir -p "$CLAUDE_DIR/agents"
 mkdir -p "$CLAUDE_DIR/hooks"
 mkdir -p "$CLAUDE_DIR/backups"
 
@@ -60,55 +109,38 @@ else
 fi
 
 # -------------------------------------------------------
-# 4. Copiar skills (sem sobrescrever existentes)
+# 4. Copiar apenas skills essenciais
 # -------------------------------------------------------
-echo "[2/5] Instalando skills..."
+echo "[2/5] Instalando skills essenciais..."
 SKILLS_NEW=0
 SKILLS_SKIP=0
 
-for skill_dir in "$INSTALL_DIR/skills"/*/; do
-  skill_name=$(basename "$skill_dir")
+for skill_name in "${ESSENTIAL_SKILLS[@]}"; do
+  source_dir="$INSTALL_DIR/skills/$skill_name"
   target="$CLAUDE_DIR/skills/$skill_name"
+
+  if [ ! -d "$source_dir" ]; then
+    echo "   AVISO: $skill_name nao encontrada no repo"
+    continue
+  fi
 
   if [ -d "$target" ] || [ -L "$target" ]; then
     SKILLS_SKIP=$((SKILLS_SKIP + 1))
   else
-    cp -r "$skill_dir" "$target"
+    cp -r "$source_dir" "$target"
     SKILLS_NEW=$((SKILLS_NEW + 1))
   fi
 done
 
 echo "   $SKILLS_NEW novas | $SKILLS_SKIP ja existiam"
+echo "   (${#ESSENTIAL_SKILLS[@]} skills essenciais, $(ls -d "$INSTALL_DIR/skills"/*/ 2>/dev/null | wc -l | tr -d ' ') disponiveis no repo)"
 
 # -------------------------------------------------------
-# 5. Copiar agents (sem sobrescrever existentes)
+# 5. Copiar hooks (seguranca + sessao)
 # -------------------------------------------------------
-echo "[3/5] Instalando agents..."
-AGENTS_NEW=0
+echo "[3/5] Instalando hooks..."
 
-if [ -d "$INSTALL_DIR/agents" ]; then
-  for agent_file in "$INSTALL_DIR/agents"/*.md; do
-    [ -f "$agent_file" ] || continue
-    agent_name=$(basename "$agent_file")
-    target="$CLAUDE_DIR/agents/$agent_name"
-
-    if [ -f "$target" ]; then
-      echo "   SKIP: $agent_name (ja existe)"
-    else
-      cp "$agent_file" "$target"
-      AGENTS_NEW=$((AGENTS_NEW + 1))
-      echo "   + $agent_name"
-    fi
-  done
-fi
-
-echo "   $AGENTS_NEW agents instalados"
-
-# -------------------------------------------------------
-# 6. Copiar hooks (com backup se existir)
-# -------------------------------------------------------
-echo "[4/7] Instalando hooks base..."
-
+# Base (activator + triggers)
 for hook_file in "$INSTALL_DIR/hooks"/*; do
   [ -f "$hook_file" ] || continue
   hook_name=$(basename "$hook_file")
@@ -116,60 +148,36 @@ for hook_file in "$INSTALL_DIR/hooks"/*; do
 
   if [ -f "$target" ]; then
     cp "$target" "$CLAUDE_DIR/backups/${hook_name}.bak.$(date +%Y%m%d%H%M%S)"
-    echo "   ~ $hook_name (backup + atualizado)"
-  else
-    echo "   + $hook_name"
   fi
-
   cp "$hook_file" "$target"
 done
 
-# -------------------------------------------------------
-# 7. Copiar hooks de seguranca
-# -------------------------------------------------------
-echo "[5/7] Instalando hooks de seguranca..."
-
+# Seguranca
 for hook_file in "$INSTALL_DIR/hooks/security"/*.sh; do
   [ -f "$hook_file" ] || continue
   hook_name=$(basename "$hook_file")
   target="$CLAUDE_DIR/hooks/$hook_name"
-
-  if [ -f "$target" ]; then
-    echo "   SKIP: $hook_name (ja existe)"
-  else
-    cp "$hook_file" "$target"
-    echo "   + $hook_name"
-  fi
+  [ -f "$target" ] || cp "$hook_file" "$target"
 done
 
-# -------------------------------------------------------
-# 8. Copiar hooks de sessao
-# -------------------------------------------------------
-echo "[6/7] Instalando hooks de sessao..."
-
+# Sessao
 for hook_file in "$INSTALL_DIR/hooks/session"/*.sh; do
   [ -f "$hook_file" ] || continue
   hook_name=$(basename "$hook_file")
   target="$CLAUDE_DIR/hooks/$hook_name"
-
-  if [ -f "$target" ]; then
-    echo "   SKIP: $hook_name (ja existe)"
-  else
-    cp "$hook_file" "$target"
-    echo "   + $hook_name"
-  fi
+  [ -f "$target" ] || cp "$hook_file" "$target"
 done
 
 chmod +x "$CLAUDE_DIR/hooks"/*.sh 2>/dev/null
+echo "   Hooks instalados (seguranca + sessao + activator)"
 
 # -------------------------------------------------------
-# 9. Configurar settings.json com TODOS os hooks
+# 6. Configurar settings.json
 # -------------------------------------------------------
-echo "[7/7] Configurando settings.json..."
+echo "[4/5] Configurando settings.json..."
 
 SETTINGS="$CLAUDE_DIR/settings.json"
 
-# Configuracao completa de hooks
 HOOKS_CONFIG='{
   "hooks": {
     "UserPromptSubmit": [
@@ -212,38 +220,46 @@ HOOKS_CONFIG='{
 }'
 
 if [ -f "$SETTINGS" ]; then
-  # Backup
   cp "$SETTINGS" "$CLAUDE_DIR/backups/settings.json.bak.$(date +%Y%m%d%H%M%S)"
-
-  # Merge hooks no settings existente
   echo "$HOOKS_CONFIG" | jq -s '.[0] * .[1]' "$SETTINGS" - > "${SETTINGS}.tmp"
   mv "${SETTINGS}.tmp" "$SETTINGS"
   echo "   Hooks mergeados no settings.json existente"
 else
   echo "$HOOKS_CONFIG" > "$SETTINGS"
-  echo "   settings.json criado com hooks completos"
+  echo "   settings.json criado"
 fi
 
 # -------------------------------------------------------
-# Done
+# 5. Resumo
 # -------------------------------------------------------
 TOTAL_SKILLS=$(ls -d "$CLAUDE_DIR/skills"/*/ 2>/dev/null | wc -l | tr -d ' ')
-TOTAL_AGENTS=$(ls "$CLAUDE_DIR/agents"/*.md 2>/dev/null | wc -l | tr -d ' ')
 
 echo ""
-echo "  Instalacao completa!"
+echo "[5/5] Instalacao completa!"
 echo ""
-echo "  Skills:    $TOTAL_SKILLS"
-echo "  Agents:    $TOTAL_AGENTS"
-echo "  Hooks:"
-echo "    Seguranca: block-destructive, protect-secrets, enforce-readonly"
-echo "    Sessao:    session-setup, post-compact-restore, pre-compact-save"
-echo "    Skills:    skill-activator + skill-triggers.json"
+echo "  Skills essenciais: ${#ESSENTIAL_SKILLS[@]}"
+echo "  Skills total:      $TOTAL_SKILLS"
+echo "  Hooks:             seguranca + sessao + activator"
 echo ""
-echo "  Para atualizar:"
+echo "  Categorias instaladas:"
+echo "    Meta:       forge, agent-teams-manager, skill-creator"
+echo "    Linear:     linear-init, linear-pm, linear-work, linear-teams"
+echo "    Workflow:   debugging, clean-code, tdd, plans, verification"
+echo "    Git:        git-specialist, finishing-branch"
+echo "    Review:     code-reviewer, requesting, receiving"
+echo "    Next.js:    nextjs-architect"
+echo "    Infra:      database-migrations, security, ci-cd, docker"
+echo "    Testes:     testing-strategy, playwright-e2e"
+echo ""
+echo "  Skills extras (instalar manualmente se precisar):"
+echo "    cp ~/.claude/impeto-skills/skills/{nome} ~/.claude/skills/"
+echo "    Disponiveis: golang-*, pai-*, sgi-*, remotion-*, business, etc."
+echo ""
+echo "  Atualizar:"
 echo "    cd ~/.claude/impeto-skills && git pull && bash install.sh"
 echo ""
-echo "  Teste agora no Claude Code:"
-echo "    'forge skill'    -> cria nova skill"
-echo "    'monta um time'  -> agent teams manager"
+echo "  Testar:"
+echo "    'forge skill'              -> cria nova skill"
+echo "    'monta um time'            -> agent teams"
+echo "    'executar issues do linear' -> linear teams"
 echo ""
