@@ -1,6 +1,13 @@
 {
   "skills": [
     {
+      "name": "linear-teams",
+      "priority": 0,
+      "pattern": "executar.?issues|executar.?projeto.?linear|montar.?time.?linear|issues.?do.?linear|sprint.?linear|rodar.?sprint|executar.?sprint|linear.*team|team.*linear",
+      "enforce": "CRITICAL: Lead = PM/PO. Executar linear-init PRIMEIRO. Ler issues do Linear. Mapear issues → teammates. Teammates atualizam Linear (In Review + label Claude + comentário). NUNCA mover pra Done.",
+      "path": "~/.claude/skills/linear-teams/SKILL.md"
+    },
+    {
       "name": "agent-teams-manager",
       "priority": 1,
       "pattern": "\\btime\\b.*agent|\\bagent.*time\\b|\\bteam\\b|\\bmulti.?agent\\b|\\bswarm\\b|\\bequipe\\b|\\bsquad\\b|\\bmontar.?time\\b|\\bcriar.?time\\b|\\bagent.?teams\\b|\\bparalelo\\b.*agent|\\bagentes?.?em.?paralelo\\b|\\bcriar.?agents\\b|\\bcria.?dois\\b|\\bcria.?tres\\b|\\bcria.?quatro\\b|\\bmontar.?equipe\\b|\\btime.?de.?dev\\b|\\borquestrar\\b|\\bcoordenar.?agents\\b",
