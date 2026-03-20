@@ -107,7 +107,7 @@ echo "   $AGENTS_NEW agents instalados"
 # -------------------------------------------------------
 # 6. Copiar hooks (com backup se existir)
 # -------------------------------------------------------
-echo "[4/5] Instalando hooks..."
+echo "[4/7] Instalando hooks base..."
 
 for hook_file in "$INSTALL_DIR/hooks"/*; do
   [ -f "$hook_file" ] || continue
@@ -115,7 +115,6 @@ for hook_file in "$INSTALL_DIR/hooks"/*; do
   target="$CLAUDE_DIR/hooks/$hook_name"
 
   if [ -f "$target" ]; then
-    # Backup do existente
     cp "$target" "$CLAUDE_DIR/backups/${hook_name}.bak.$(date +%Y%m%d%H%M%S)"
     echo "   ~ $hook_name (backup + atualizado)"
   else
@@ -125,54 +124,104 @@ for hook_file in "$INSTALL_DIR/hooks"/*; do
   cp "$hook_file" "$target"
 done
 
+# -------------------------------------------------------
+# 7. Copiar hooks de seguranca
+# -------------------------------------------------------
+echo "[5/7] Instalando hooks de seguranca..."
+
+for hook_file in "$INSTALL_DIR/hooks/security"/*.sh; do
+  [ -f "$hook_file" ] || continue
+  hook_name=$(basename "$hook_file")
+  target="$CLAUDE_DIR/hooks/$hook_name"
+
+  if [ -f "$target" ]; then
+    echo "   SKIP: $hook_name (ja existe)"
+  else
+    cp "$hook_file" "$target"
+    echo "   + $hook_name"
+  fi
+done
+
+# -------------------------------------------------------
+# 8. Copiar hooks de sessao
+# -------------------------------------------------------
+echo "[6/7] Instalando hooks de sessao..."
+
+for hook_file in "$INSTALL_DIR/hooks/session"/*.sh; do
+  [ -f "$hook_file" ] || continue
+  hook_name=$(basename "$hook_file")
+  target="$CLAUDE_DIR/hooks/$hook_name"
+
+  if [ -f "$target" ]; then
+    echo "   SKIP: $hook_name (ja existe)"
+  else
+    cp "$hook_file" "$target"
+    echo "   + $hook_name"
+  fi
+done
+
 chmod +x "$CLAUDE_DIR/hooks"/*.sh 2>/dev/null
 
 # -------------------------------------------------------
-# 7. Configurar settings.json com hook do activator
+# 9. Configurar settings.json com TODOS os hooks
 # -------------------------------------------------------
-echo "[5/5] Configurando settings.json..."
+echo "[7/7] Configurando settings.json..."
 
 SETTINGS="$CLAUDE_DIR/settings.json"
 
-if [ -f "$SETTINGS" ]; then
-  # Verifica se ja tem o hook configurado
-  if jq -e '.hooks.UserPromptSubmit' "$SETTINGS" &>/dev/null; then
-    if grep -q "skill-activator.sh" "$SETTINGS" 2>/dev/null; then
-      echo "   Hook ja configurado"
-    else
-      # Adiciona o hook ao array existente
-      cp "$SETTINGS" "$CLAUDE_DIR/backups/settings.json.bak.$(date +%Y%m%d%H%M%S)"
-      jq '.hooks.UserPromptSubmit += [{"matcher":"","hooks":[{"type":"command","command":"~/.claude/hooks/skill-activator.sh"}]}]' "$SETTINGS" > "${SETTINGS}.tmp"
-      mv "${SETTINGS}.tmp" "$SETTINGS"
-      echo "   Hook adicionado ao settings.json"
-    fi
-  else
-    # Cria a seção hooks
-    cp "$SETTINGS" "$CLAUDE_DIR/backups/settings.json.bak.$(date +%Y%m%d%H%M%S)"
-    jq '. + {"hooks":{"UserPromptSubmit":[{"matcher":"","hooks":[{"type":"command","command":"~/.claude/hooks/skill-activator.sh"}]}]}}' "$SETTINGS" > "${SETTINGS}.tmp"
-    mv "${SETTINGS}.tmp" "$SETTINGS"
-    echo "   Seção hooks criada no settings.json"
-  fi
-else
-  # Cria settings.json minimo
-  cat > "$SETTINGS" << 'SETTINGS_EOF'
-{
+# Configuracao completa de hooks
+HOOKS_CONFIG='{
   "hooks": {
     "UserPromptSubmit": [
       {
         "matcher": "",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "~/.claude/hooks/skill-activator.sh"
-          }
-        ]
+        "hooks": [{ "type": "command", "command": "~/.claude/hooks/skill-activator.sh" }]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [{ "type": "command", "command": "~/.claude/hooks/block-destructive.sh" }]
+      },
+      {
+        "matcher": "Read|Write|Edit",
+        "hooks": [{ "type": "command", "command": "~/.claude/hooks/protect-secrets.sh" }]
+      },
+      {
+        "matcher": "Write|Edit",
+        "hooks": [{ "type": "command", "command": "~/.claude/hooks/enforce-readonly.sh" }]
+      }
+    ],
+    "SessionStart": [
+      {
+        "matcher": "startup",
+        "hooks": [{ "type": "command", "command": "~/.claude/hooks/session-setup.sh" }]
+      },
+      {
+        "matcher": "compact",
+        "hooks": [{ "type": "command", "command": "~/.claude/hooks/post-compact-restore.sh" }]
+      }
+    ],
+    "PreCompact": [
+      {
+        "matcher": "",
+        "hooks": [{ "type": "command", "command": "~/.claude/hooks/pre-compact-save.sh" }]
       }
     ]
   }
-}
-SETTINGS_EOF
-  echo "   settings.json criado"
+}'
+
+if [ -f "$SETTINGS" ]; then
+  # Backup
+  cp "$SETTINGS" "$CLAUDE_DIR/backups/settings.json.bak.$(date +%Y%m%d%H%M%S)"
+
+  # Merge hooks no settings existente
+  echo "$HOOKS_CONFIG" | jq -s '.[0] * .[1]' "$SETTINGS" - > "${SETTINGS}.tmp"
+  mv "${SETTINGS}.tmp" "$SETTINGS"
+  echo "   Hooks mergeados no settings.json existente"
+else
+  echo "$HOOKS_CONFIG" > "$SETTINGS"
+  echo "   settings.json criado com hooks completos"
 fi
 
 # -------------------------------------------------------
@@ -184,12 +233,15 @@ TOTAL_AGENTS=$(ls "$CLAUDE_DIR/agents"/*.md 2>/dev/null | wc -l | tr -d ' ')
 echo ""
 echo "  Instalacao completa!"
 echo ""
-echo "  Skills:  $TOTAL_SKILLS"
-echo "  Agents:  $TOTAL_AGENTS"
-echo "  Hooks:   skill-activator.sh + skill-triggers.json"
+echo "  Skills:    $TOTAL_SKILLS"
+echo "  Agents:    $TOTAL_AGENTS"
+echo "  Hooks:"
+echo "    Seguranca: block-destructive, protect-secrets, enforce-readonly"
+echo "    Sessao:    session-setup, post-compact-restore, pre-compact-save"
+echo "    Skills:    skill-activator + skill-triggers.json"
 echo ""
 echo "  Para atualizar:"
-echo "    cd ~/.claude/impeto-skills && git pull && bash install.sh --update"
+echo "    cd ~/.claude/impeto-skills && git pull && bash install.sh"
 echo ""
 echo "  Teste agora no Claude Code:"
 echo "    'forge skill'    -> cria nova skill"
