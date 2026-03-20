@@ -69,7 +69,13 @@ Procurar LINEAR_API_KEY em:
 
 Se não encontrar → PARAR e instruir o usuário.
 
-### 0b. Identificar usuário + projetos
+### 0b. Identificar usuário + projetos (CRÍTICO)
+
+**O viewer.id retornado aqui é o DONO de tudo nesta sessão.**
+- Guardar `viewer.id` como VIEWER_ID
+- TODA issue criada: `assigneeId: VIEWER_ID` (default)
+- TODA issue existente: filtrar por `assignee.id == VIEWER_ID`
+- Passar VIEWER_ID no prompt de CADA teammate pra eles usarem
 
 ```graphql
 {

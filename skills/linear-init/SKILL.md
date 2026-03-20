@@ -41,7 +41,11 @@ Sem a API key, nenhuma operacao do Linear funcionara.
 
 ---
 
-## PASSO 1: IDENTIFICAR USUARIO
+## PASSO 1: IDENTIFICAR USUARIO (CRÍTICO — define o contexto da sessão)
+
+**O viewer.id retornado aqui é o ID do usuário pra toda a sessão.**
+Guardar e usar como `assigneeId` default em TODA criação/atribuição de issue.
+Se a query falhar → API key errada → PARAR.
 
 Usar a API key encontrada para consultar o viewer:
 

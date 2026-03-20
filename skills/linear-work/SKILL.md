@@ -41,15 +41,20 @@ Apos receber:
 
 ---
 
-## IDENTIFICAR USUARIO
+## IDENTIFICAR USUARIO (OBRIGATÓRIO — ANTES DE QUALQUER OPERAÇÃO)
 
-Sempre comecar identificando quem e o usuario via `viewer`:
+**PRIMEIRO PASSO DE TUDO**: consultar o viewer pra saber QUEM é o usuário:
 
 ```graphql
 { viewer { id name email } }
 ```
 
-Guardar o `id` para filtrar tasks atribuidas ao usuario.
+**GUARDAR o `id` do viewer** — usar em TODA operação:
+- `assigneeId: "VIEWER_ID"` ao criar issues (default: atribuir ao viewer)
+- Filtrar tasks por `assignee.id == VIEWER_ID`
+- Identificar no comentário quem executou
+
+**NÃO PROSSEGUIR sem ter o viewer.id.** Se a query falhar, a API key está errada.
 
 ---
 
