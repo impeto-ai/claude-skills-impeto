@@ -56,6 +56,7 @@ ESSENTIAL_SKILLS=(
   # Testes
   "testing-strategy"
   "playwright-e2e-testing"
+  "qa-validator"
 
   # API
   "api-design"
