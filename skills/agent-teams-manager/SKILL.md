@@ -185,20 +185,49 @@ Confirma? (posso ajustar antes de criar)
 
 ## FASE 3: Criação e Execução
 
-### PASSO 0 — Verificar tmux (OBRIGATÓRIO antes de criar)
+### PASSO 0 — Verificar plataforma e tmux (OBRIGATÓRIO antes de criar)
 
-Antes de criar o time, verificar se estamos dentro do tmux:
+Antes de criar o time, detectar SO e verificar tmux:
 
 ```bash
-echo "TMUX=$TMUX"
+echo "OS=$(uname -s)" && echo "TMUX=$TMUX" && echo "WSL=$(grep -ci microsoft /proc/version 2>/dev/null || echo 0)"
 ```
 
-| Resultado | Significado | Ação |
-|---|---|---|
-| `TMUX=/private/tmp/tmux-501/default,...` | Dentro do tmux | Prosseguir — teammates abrem em panes |
-| `TMUX=` (vazio) | FORA do tmux | AVISAR o usuário |
+#### Decisão por plataforma:
 
-Se TMUX está **vazio**, informar:
+| OS | WSL | TMUX | Significado | Ação |
+|---|---|---|---|---|
+| `Darwin` | — | preenchido | macOS dentro do tmux | Prosseguir — panes tmux |
+| `Darwin` | — | vazio | macOS fora do tmux | Avisar (ver abaixo) |
+| `Linux` | 0 | preenchido | Linux dentro do tmux | Prosseguir — panes tmux |
+| `Linux` | 0 | vazio | Linux fora do tmux | Avisar (ver abaixo) |
+| `Linux` | ≥1 | preenchido | WSL dentro do tmux | Prosseguir — panes tmux |
+| `Linux` | ≥1 | vazio | WSL fora do tmux | Avisar (ver abaixo) |
+| `MINGW*`/`MSYS*`/`CYGWIN*` | — | — | **Windows nativo (CMD/PowerShell/Git Bash)** | **BLOQUEAR** (ver abaixo) |
+
+#### Se Windows nativo (sem WSL) — BLOQUEAR:
+
+```
+🚫 Você está no Windows nativo (sem WSL).
+
+Agent Teams NÃO funciona corretamente neste ambiente:
+- tmux não existe no Windows nativo
+- modo in-process fica enviesado (sem panes visuais, sem tmux split)
+- experiência degradada e propensa a erros
+
+👉 Para usar Agent Teams no Windows, você PRECISA do WSL:
+  1. Instale o WSL: wsl --install
+  2. Abra o terminal WSL (Ubuntu)
+  3. Instale o Claude Code no WSL: npm install -g @anthropic-ai/claude-code
+  4. Dentro do WSL: tmux → claude
+  5. Peça pra montar o time
+
+Não é possível continuar sem WSL. Quer ajuda pra configurar o WSL?
+```
+
+**NÃO prosseguir.** Não oferecer modo in-process no Windows nativo. WSL é pré-requisito obrigatório.
+
+#### Se macOS/Linux/WSL mas FORA do tmux:
 
 ```
 ⚠️ Você NÃO está dentro do tmux.
@@ -394,6 +423,7 @@ Quando todas as tasks completam:
 | Teammate não responde | Idle (normal) | SendMessage para acordar |
 | Conflito de arquivos | Dois agents no mesmo file | Redistribuir file ownership |
 | tmux panes não aparecem | Não está em tmux session | Iniciar com `tmux` antes |
+| Windows nativo sem tmux | Windows não suporta tmux | Instalar WSL (`wsl --install`) e rodar dentro do WSL |
 | Teammate sumiu | Crashed ou timeout | Spawnar novo com mesmo nome |
 | TeamDelete falha | Teammates ainda ativos | shutdown_request para todos primeiro |
 
