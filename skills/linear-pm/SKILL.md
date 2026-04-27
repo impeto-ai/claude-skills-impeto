@@ -4,9 +4,11 @@ description: Use when creating, managing, or organizing tasks in Linear (v2 — 
 chain: none
 ---
 
-# Linear PM - Gestao de Projetos via API (v2 — templates)
+# Linear PM - Gestao de Projetos via API (v2.1 — templates + Solicitante no texto)
 
 Skill autonoma pra criar e gerenciar projetos, milestones, issues e sub-issues no Linear via GraphQL API. **v2:** issue templates obrigatorios (1 dos 7) + project templates (Software Dev / AI Dev) ao criar projeto + Reportar gate.
+
+> **v2.1 (2026-04-27):** removido o conceito de label `Source/<slug>`. O **solicitante** vai SEMPRE no texto do description (campo `**Solicitante:**` que o template ja traz). NAO crie labels `Source/*`.
 
 ## When to Use
 - Criar projeto novo no Linear (escolhe template Software Dev ou AI Dev)
@@ -96,7 +98,7 @@ Initiative (estrategico, ex: "Performar SGI & Agrino")
 3. **Ao mover pra Review:** OBRIGATORIO comentario detalhado (ver secao Comentarios)
 4. **Tag Claude:** se task feita por Claude Code, OBRIGATORIO label `Claude` na issue
 5. **(v2) Taxonomia obrigatoria:** issue criada SEMPRE via `templateId` (1 dos 7) + Type/* label correspondente
-6. **(v2) Reportar gate:** SEMPRE perguntar "Reportar quando concluido?" antes de criar
+6. **(v2.1) Solicitante no texto:** SEMPRE preencher `**Solicitante:**` no description (campo do template). NAO criar label `Source/*`. Tambem perguntar "Reportar quando concluido?" e marcar checkbox `[x] Reportar` se sim.
 7. **(v2) State Ownership (foco IAP/Innovagro):**
    - Emanuel Montenegro = triagem (Backlog/Todo → In Progress)
    - Danilo Saraiva = review tecnico (In Progress → In Review)
@@ -281,8 +283,8 @@ Confirme/preencha:
 - Milestone: {listar do project}, ou nenhum?
 - Estimate (1/2/3/5/8/13): ?
 - Due date: ? (obrigatorio se Hotfix)
-- Solicitante / Beneficiario: @quem?
-- Reportar quando concluido? (s/n)
+- Solicitante / Beneficiario: nome (vai NO TEXTO do description, NAO em label)
+- Reportar quando concluido? (s/n) — checkbox no description
 - Atribuir a: viewer (default), ou outro?
 ```
 
@@ -301,8 +303,8 @@ mutation {
     assigneeId: "USER_ID"
     labelIds: [
       "<TYPE_LABEL_ID>",                    # OBRIGATORIO incluir Type/* do template
-      "<SOURCE_LABEL_ID>",                  # se Reportar=sim
       "<COMPONENT_LABEL_ID>"                # opcional
+      # NAO usar `Source/*` — descontinuado em v2.1
     ]
   }) {
     issue { id identifier title url }
@@ -317,31 +319,22 @@ mutation {
 - Solucao: SEMPRE incluir `<TYPE_LABEL_ID>` no array junto com extras.
 - Se nao precisa de extras, omitir `labelIds` (template aplica Type/* sozinho).
 
-**Reportar gate (pos-criacao se Reportar=sim):**
-1. Buscar/criar `Source/<slug>` label
-2. issueUpdate com novo description tendo `- [x] Reportar` (Linear re-converte ProseMirror)
+**Pos-criacao (SEMPRE):**
+
+Apos `issueCreate`, fazer `issueUpdate` pra preencher os campos do template no description:
+1. `**Solicitante:**` → nome (ex: `Clodoaldo`)
+2. `**Beneficiário:**` → cliente, time ou pessoa
+3. `- [ ] Reportar` → trocar pra `- [x] Reportar` SE Reportar=sim
 
 ```graphql
-# Buscar Source/<slug>
-{ issueLabels(filter: { name: { eq: "Source/<slug>" } }) { nodes { id } } }
-
-# Criar se nao existe
-mutation {
-  issueLabelCreate(input: {
-    name: "Source/<slug>"
-    color: "#f2994a"
-    description: "Source — dispara notificacao Discord/email no Done"
-  }) { issueLabel { id } }
-}
-
-# Patch description marcando Reportar=true
 mutation {
   issueUpdate(id: "ISSUE_ID", input: {
-    description: "{description COM `- [x] Reportar` no final}"
-    labelIds: ["TYPE_LABEL_ID", "SOURCE_LABEL_ID"]
-  }) { issue { identifier } }
+    description: "{description completo do template, com Solicitante/Beneficiario preenchidos e checkbox Reportar marcado se aplicavel}"
+  }) { issue { identifier description } }
 }
 ```
+
+> **NAO use `Source/<slug>` label.** Foi descontinuado em v2.1. Solicitante vai SOMENTE no texto do description. O webhook (n8n) usa apenas o checkbox `[x] Reportar` como sinal.
 
 ### 5. Criar Sub-issue
 
@@ -630,7 +623,7 @@ Antes de chamar `issueCreate`, garantir:
 | `templateId` | sim | 1 dos 7 IDs |
 | `<TYPE_LABEL_ID>` no labelIds | sim (se passar labelIds) | senao `templateId` aplica sozinho |
 | `dueDate` | sim se Hotfix | regra: Hotfix sem dueDate = recusa |
-| `Reportar?` perguntado ao user | **sim, sempre** | Source/* aplicada se Reportar=sim |
+| `Reportar?` perguntado ao user | **sim, sempre** | Checkbox `[x] Reportar` marcado no description se sim. NAO usar `Source/*` label. |
 | `projectMilestoneId` | recomendado | issue ficar orfa do milestone e perda |
 
 Antes de chamar `projectCreate`:
@@ -668,7 +661,9 @@ Antes de chamar `projectCreate`:
 - **Esquecer comentario detalhado** ao mover pra Review
 - **Sobrescrever labels** usando `labelIds` sem consultar existentes
 - **(v2) Criar issue sem `templateId`** — fora da disciplina v2, fora dos relatorios
-- **(v2) Esquecer pergunta "Reportar quando concluido?"** — webhook n8n nao notifica solicitante
+- **(v2) Esquecer pergunta "Reportar quando concluido?"** — webhook n8n nao dispara
+- **(v2.1) Criar label `Source/<slug>`** — descontinuado. Solicitante vai SO no texto do description
+- **(v2.1) Esquecer `issueUpdate` pos-criacao** preenchendo Solicitante/Beneficiario/Reportar — issue fica com placeholders vazios
 - **(v2) Passar `labelIds` junto com `templateId` SEM incluir Type/* correspondente** — sobrescreve template
 - **(v2) Criar projeto sem `templateId`** — perde os 5 milestones automaticos
 - **(v2) Fazer 5-6 perguntas separadas ao user** — Soul axioma 5: UMA pergunta consolidada

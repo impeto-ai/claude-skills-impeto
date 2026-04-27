@@ -4,9 +4,11 @@ description: Operational skill for day-to-day Linear task management (v2 — tem
 chain: none
 ---
 
-# Linear Work - Operacao Diaria (v2 — templates + Reportar gate)
+# Linear Work - Operacao Diaria (v2.1 — templates + Solicitante no texto)
 
 Skill operacional pro dia-a-dia do dev. Foco em tasks pessoais, movimentacao de estados, criacao de issues **sempre via template**, comentarios.
+
+> **v2.1 (2026-04-27) — MUDANCA IMPORTANTE:** removido o conceito de label `Source/<slug>`. O **solicitante** agora vai SEMPRE no texto do description, no campo `**Solicitante:**` que o template ja traz. NAO crie labels `Source/*` — o checkbox `Reportar` ja e suficiente como sinal pro webhook (n8n).
 
 ## When to Use
 - Ver minhas tasks atuais
@@ -194,12 +196,13 @@ mutation {
    - Aguardando revisao humana (Danilo / Joao)
 ```
 
-### 4. CRIAR ISSUE (v2 — SEMPRE via template + Reportar gate)
+### 4. CRIAR ISSUE (v2.1 — SEMPRE via template + Solicitante no texto)
 
 **REGRAS:**
 1. **SEMPRE escolher um dos 7 templates** (Feature/Bug/Hotfix/Refactor/Spike/Report/Knowledge). Se nao da pra inferir do contexto, perguntar.
-2. **SEMPRE perguntar "Reportar quando concluido?"** antes de criar.
-3. **UMA pergunta consolidada multi-campo** — nao 5-6 perguntas separadas.
+2. **SEMPRE preencher `**Solicitante:**` no texto do description** (campo que o template ja traz). NAO criar label `Source/*`.
+3. **SEMPRE perguntar "Reportar quando concluido?"** antes de criar — checkbox no description, sem label associada.
+4. **UMA pergunta consolidada multi-campo** — nao 5-6 perguntas separadas.
 
 **Fluxo conversacional:**
 
@@ -234,9 +237,9 @@ Por favor confirme/preencha:
 - Priority: {default do template — Bug=2, Hotfix=1, Feature/Spike/Report=3, Refactor/Knowledge=4}
 - Estimate (1/2/3/5/8/13): ?
 - Due date: ?  (opcional, mas obrigatorio se Hotfix)
-- Solicitante: @quem? (do template)
-- Beneficiario: @quem ou cliente:slug? (do template)
-- Reportar quando concluido? (s/n)  ← novo
+- Solicitante: nome (vai no texto do description, NAO em label)
+- Beneficiario: nome ou cliente (vai no texto do description)
+- Reportar quando concluido? (s/n)  — checkbox no description
 - Atribuir a: viewer (default), ou outro?
 ```
 
@@ -264,6 +267,7 @@ mutation {
 - Linear comportamento testado: passar `labelIds` JUNTO com `templateId` **SOBRESCREVE** as labels do template (nao adiciona).
 - Solucao: SEMPRE incluir o `Type/*` label correspondente no array, junto com extras.
 - Se nao precisa de labels extras, OMITIR `labelIds` (deixa o template aplicar so o Type/*).
+- **NAO incluir `Source/*` label** — esse padrao foi descontinuado em v2.1. Solicitante vai SEMPRE no texto do description.
 
 **Type/* label IDs (sempre incluir o do template escolhido):**
 
@@ -277,29 +281,26 @@ mutation {
 | Report | `1018beba-b5d4-4a96-8766-d6f18c4c3df9` |
 | Knowledge | `3a4669b3-4b92-4b0d-a37d-a5683c186463` |
 
-#### Step D — Pos-criacao: Reportar gate
+#### Step D — Pos-criacao: preencher description (Solicitante + Reportar)
 
-Se usuario respondeu **Reportar = sim**:
-1. Buscar/criar `Source/<slug>` label (slug = solicitante ou cliente)
-2. Atualizar issue marcando o checkbox `Reportar` no description (descriptionData patch — ver nota abaixo) E adicionar `Source/<slug>` aos labelIds
+Apos `issueCreate`, o template aplica um description com placeholders vazios. Voce precisa preencher 3 campos do markdown e fazer um `issueUpdate`:
 
-Se usuario respondeu **Reportar = nao**:
-- Deixa default (checkbox desmarcado, sem Source label)
+1. `**Solicitante:**` → nome da pessoa (ex: `Clodoaldo`)
+2. `**Beneficiário:**` → cliente, time ou pessoa beneficiada (ex: `Innovagro / Mesa`)
+3. `- [ ] Reportar` → trocar pra `- [x] Reportar` SE o usuario respondeu Reportar=sim. Se respondeu nao, deixa desmarcado.
 
-**Mutation pra criar Source/<slug> se nao existe:**
+**Mutation:**
 ```graphql
 mutation {
-  issueLabelCreate(input: {
-    name: "Source/<slug>"
-    color: "#f2994a"
-    description: "Solicitante/beneficiario que dispara notificacao no Done"
-  }) { issueLabel { id name } }
+  issueUpdate(id: "ISSUE_ID", input: {
+    description: "{description completo do template, com Solicitante/Beneficiario preenchidos e checkbox Reportar marcado se aplicavel}"
+  }) {
+    issue { identifier description }
+  }
 }
 ```
 
-**Patch descriptionData pra marcar checkbox Reportar=true:**
-- Mais simples: `issueUpdate(input: { description: "...new markdown com - [x] Reportar..." })`
-- Linear re-converte markdown para descriptionData ProseMirror automaticamente.
+**NAO criar label `Source/*`.** O nome do solicitante vai SO no texto. O sinal pro webhook (n8n) eh apenas o checkbox `[x] Reportar`.
 
 #### Step E — Confirmar ao usuario
 
@@ -398,9 +399,9 @@ Ver tabela acima.
 | ai | `66de6fae-5f2f-46f8-af7f-72dabefb20fc` |
 | devops | `e47f1131-2f62-4ec2-ab19-5a1d93b06834` |
 
-### Source/* (criada on-demand quando Reportar=sim)
-Pattern: `Source/<slug>` onde slug = `joao`, `mix-alimentos`, `meu-micro`, `agrofarm`, `estimulus`, etc.
-Cor padrao: `#f2994a`. Criada via `issueLabelCreate` se nao existir.
+### ~~Source/* (DESCONTINUADO em v2.1)~~
+
+> Em v2.0 a skill criava labels `Source/<slug>` automaticamente. **Foi removido em v2.1.** O nome do solicitante agora vai SEMPRE no texto do description (campo `**Solicitante:**` que o template ja traz). NAO crie labels novas.
 
 ---
 
@@ -409,11 +410,12 @@ Cor padrao: `#f2994a`. Criada via `issueLabelCreate` se nao existir.
 Antes de chamar `issueCreate`, validar:
 
 - [ ] Template escolhido (1 dos 7)?
+- [ ] Solicitante / Beneficiario sera preenchido NO TEXTO do description (NAO via label `Source/*`)?
 - [ ] Pergunta "Reportar quando concluido?" feita ao usuario?
-- [ ] Se Reportar=sim: `Source/<slug>` label preparada?
-- [ ] Type/* label correspondente no labelIds?
+- [ ] Type/* label correspondente no labelIds (se passar labelIds)?
 - [ ] Se Hotfix: dueDate definido?
 - [ ] Title claro e especifico (verbo imperativo + objeto)?
+- [ ] Plano de fazer `issueUpdate` pos-criacao pra preencher Solicitante + Beneficiario + checkbox Reportar?
 
 Se algum FALHAR e usuario insistir: PARAR e pedir confirmacao explicita ("Quer mesmo criar issue sem Type? Vai ficar fora dos relatorios.").
 
@@ -439,6 +441,8 @@ Se algum FALHAR e usuario insistir: PARAR e pedir confirmacao explicita ("Quer m
 - Esquecer comentario ao mover pra In Review
 - Usar `labelIds` sem consultar labels existentes (sobrescreve tudo)
 - (v2) **Criar issue sem `templateId`** — fora da disciplina v2
-- (v2) **Esquecer pergunta "Reportar?"** — webhook n8n nao notifica solicitante
+- (v2) **Esquecer pergunta "Reportar?"** — webhook n8n nao dispara
+- (v2.1) **Criar label `Source/<slug>`** — descontinuado. Solicitante vai SO no texto do description
+- (v2.1) **Esquecer de fazer `issueUpdate` pos-criacao** preenchendo Solicitante/Beneficiario/Reportar — issue fica com placeholders vazios
 - (v2) Passar `labelIds` junto com `templateId` SEM incluir Type/* label correspondente — sobrescreve template label
 - (v2) Pular pergunta consolidada e fazer 5-6 perguntas separadas — Soul axioma 5

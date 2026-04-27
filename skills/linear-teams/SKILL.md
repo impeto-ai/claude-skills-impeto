@@ -265,7 +265,8 @@ NAO toque em: {dirs dos outros}
   * Spike de pesquisa: templateId=f9c21b5c-6a74-4b53-a4cb-94fa038e3219 (Type/Spike)
   * Refactor escopo extra: templateId=85878d0f-b983-4ce7-9662-b15546c0494f (Type/Refactor)
 - Mutation: issueCreate(input: { title, teamId, templateId, parentId? }) — Linear popula description + Type/* label + priority do template
-- SEMPRE perguntar ao lead via SendMessage 'Reportar quando concluido?' antes de criar — nao crie sozinho
+- SEMPRE perguntar ao lead via SendMessage 'Reportar quando concluido?' antes de criar — nao crie sozinho. Se sim, marque `- [x] Reportar` no description (NAO criar label `Source/*` — descontinuado em v2.1)
+- Solicitante/Beneficiario sempre vai NO TEXTO do description (campo `**Solicitante:**` que o template ja traz)
 
 ## API Linear
 - Endpoint: https://api.linear.app/graphql
