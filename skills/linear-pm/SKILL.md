@@ -1,19 +1,19 @@
 ---
 name: linear-pm
-description: Use when creating, managing, or organizing tasks in Linear. Activates for "linear", "criar task", "criar projeto", "milestone", "issue", "sub-issue", "criar epic", "backlog linear", "mover task", "review task".
+description: Use when creating, managing, or organizing tasks in Linear (v2 — issue templates obrigatorios + project templates Software Dev / AI Dev). Activates for "linear", "criar task", "criar projeto", "milestone", "issue", "sub-issue", "criar epic", "backlog linear", "mover task", "review task".
 chain: none
 ---
 
-# Linear PM - Gestao de Projetos via API
+# Linear PM - Gestao de Projetos via API (v2 — templates)
 
-Skill autonoma para criar e gerenciar projetos, milestones, issues e sub-issues no Linear via GraphQL API. Segue a hierarquia padrao da Impeto e respeita o workflow obrigatorio com gate de revisao humana.
+Skill autonoma pra criar e gerenciar projetos, milestones, issues e sub-issues no Linear via GraphQL API. **v2:** issue templates obrigatorios (1 dos 7) + project templates (Software Dev / AI Dev) ao criar projeto + Reportar gate.
 
 ## When to Use
-- Criar projeto novo no Linear
+- Criar projeto novo no Linear (escolhe template Software Dev ou AI Dev)
 - Criar milestones (epicos) dentro de um projeto
-- Criar issues (stories/tasks)
+- Criar issues (sempre via 1 dos 7 templates: Feature/Bug/Hotfix/Refactor/Spike/Report/Knowledge)
 - Criar sub-issues dentro de uma issue
-- Mover issues entre estados (Backlog → To Do → In Progress → Review → Done)
+- Mover issues entre estados (gate humano em Review→Done)
 - Consultar status de projeto/issues
 - Documentar conclusao de tasks com comentarios detalhados
 - NOT when: consultas simples de leitura (use Linear MCP)
@@ -22,11 +22,11 @@ Skill autonoma para criar e gerenciar projetos, milestones, issues e sub-issues 
 ## Hierarquia Padrao Impeto
 
 ```
-Initiative (estrategico, ex: "Receita Propria Q1 2026")
+Initiative (estrategico, ex: "Performar SGI & Agrino")
   └── Project (escopo fechado, ex: "Mix Alimentos - Agent de Churn")
-        └── Milestone (= Epico, ex: "EP-01: Setup & Infraestrutura")
-              └── Issue (= Story/Task, ex: "Configurar Supabase")
-                    └── Sub-issue (= Subtask, ex: "Criar migrations")
+        └── Milestone (= Epico, ex: "M1 - Foundation")
+              └── Issue (= Story/Task, sempre via template)
+                    └── Sub-issue (= Subtask)
 ```
 
 ## Configuracao
@@ -41,7 +41,40 @@ Initiative (estrategico, ex: "Receita Propria Q1 2026")
 |------|----|-----|-----|
 | Impeto AI Core | `55aebf79-3615-4c29-8612-a6d415be4bdc` | IA | Projetos proprios e clientes |
 | Workflow | `23b3fdd3-3087-4c00-b650-ad3435d24252` | WFW | Projetos Workflow |
-| Impeto AI Partners | `c399b23d-f3dc-443a-ba92-43ffd7faad91` | IAP | Parcerias |
+| Impeto AI Partners | `c399b23d-f3dc-443a-ba92-43ffd7faad91` | IAP | Parcerias / Innovagro |
+
+### Templates do Workspace (v2)
+
+**Issue templates (workspace, todos teams herdam):**
+
+| Template | ID | Type/* | Priority |
+|----------|----|----|----|
+| Feature | `e682d84c-1e1c-40e7-bdd6-19853c4a577f` | Type/Feature | 3 |
+| Bug | `7c547bce-b64b-46ef-8e76-80ca5b234637` | Type/Bug | 2 |
+| Hotfix | `8357bb00-4618-4474-9351-5a95c47d572e` | Type/Hotfix | 1 |
+| Refactor | `85878d0f-b983-4ce7-9662-b15546c0494f` | Type/Refactor | 4 |
+| Spike | `f9c21b5c-6a74-4b53-a4cb-94fa038e3219` | Type/Spike | 3 |
+| Report | `bc934845-83d0-4b7d-b613-8b64425498b7` | Type/Report | 3 |
+| Knowledge | `3ca2d511-8c86-432a-b374-2daef63f15ce` | Type/Knowledge | 4 |
+
+**Project templates (workspace, type=project):**
+
+| Template | ID | Use case |
+|----------|----|----------|
+| Software Development | `2cfa380e-7552-4eee-b50f-a56a960054e2` | Codigo tradicional (Next.js, FastAPI, Supabase, dashboards) |
+| AI Development | `e4265043-9517-455c-8866-837f01404adc` | Agentes AI / LLM / Pydantic AI / multi-provider |
+
+**Type/* label IDs (usar junto com templateId em issueCreate):**
+
+| Label | ID |
+|-------|----|
+| Type/Feature | `d046098f-3937-4a28-bf19-57082d9bff71` |
+| Type/Bug | `0fab8687-157d-4d07-bddc-f68a3f1fd887` |
+| Type/Hotfix | `e05992d5-f5ae-45e6-8f2f-27ab187157b3` |
+| Type/Refactor | `860bbe5a-c1d5-4104-bbe2-15c899f309db` |
+| Type/Spike | `dc6567c6-b5a8-4cb6-a742-1b078cc5e54f` |
+| Type/Report | `1018beba-b5d4-4a96-8766-d6f18c4c3df9` |
+| Type/Knowledge | `3a4669b3-4b92-4b0d-a37d-a5683c186463` |
 
 ---
 
@@ -56,19 +89,26 @@ Initiative (estrategico, ex: "Receita Propria Q1 2026")
                                                    🔒 GATE HUMANO
 ```
 
-### Regras INVIOLAVEIS
+### Regras INVIOLAVEIS (v2)
 
-1. **NUNCA pular Review** — toda issue que sai de "In Progress" vai OBRIGATORIAMENTE para "Review" (ou "In Review")
-2. **NUNCA mover de Review → Done automaticamente** — apenas humano pode aprovar a passagem para Done
-3. **Ao mover para Review**: OBRIGATORIO adicionar um comentario detalhado (ver secao Comentarios)
-4. **Tag Claude**: se a task foi executada pelo Claude Code, OBRIGATORIO adicionar a label "Claude" na issue
-5. **Transicoes validas**:
+1. **NUNCA pular Review** — toda issue que sai de "In Progress" vai pra "In Review" obrigatoriamente
+2. **NUNCA mover de Review → Done automaticamente** — somente humano (Joao = gate executive)
+3. **Ao mover pra Review:** OBRIGATORIO comentario detalhado (ver secao Comentarios)
+4. **Tag Claude:** se task feita por Claude Code, OBRIGATORIO label `Claude` na issue
+5. **(v2) Taxonomia obrigatoria:** issue criada SEMPRE via `templateId` (1 dos 7) + Type/* label correspondente
+6. **(v2) Reportar gate:** SEMPRE perguntar "Reportar quando concluido?" antes de criar
+7. **(v2) State Ownership (foco IAP/Innovagro):**
+   - Emanuel Montenegro = triagem (Backlog/Todo → In Progress)
+   - Danilo Saraiva = review tecnico (In Progress → In Review)
+   - Joao Nascimento = gate humano executive (In Review → Done — raro)
+   - IA/WFW: Joao decide quem move
+8. **Transicoes validas:**
    - Backlog → To Do (priorizada)
-   - To Do → In Progress (alguem comecou)
-   - In Progress → Review (trabalho concluido, aguardando revisao)
-   - Review → Done (SOMENTE apos aprovacao humana)
-   - Review → In Progress (revisao reprovou, precisa refazer)
-   - Qualquer → Cancelled (cancelada)
+   - To Do → In Progress
+   - In Progress → Review (trabalho concluido)
+   - Review → Done (somente humano)
+   - Review → In Progress (revisao reprovou)
+   - Qualquer → Cancelled (com justificativa)
 
 ### Workflow States (consultar IDs antes de usar)
 
@@ -76,24 +116,14 @@ Initiative (estrategico, ex: "Receita Propria Q1 2026")
 { team(id: "TEAM_ID") { states { nodes { id name type } } } }
 ```
 
-Mapear os states consultados para:
-| State Logico | Linear State Type | Exemplos de nome |
-|---|---|---|
-| Backlog | `backlog` | Backlog |
-| To Do | `unstarted` | Todo |
-| In Progress | `started` | In Progress |
-| Review | `started` ou `custom` | In Review, Review |
-| Done | `completed` | Done |
-| Cancelled | `cancelled` | Cancelled |
-
-> **IMPORTANTE**: Sempre consultar os states REAIS do team via query antes de criar/mover issues. Os IDs mudam entre teams.
+> **IMPORTANTE:** Sempre consultar states REAIS do team via query antes de criar/mover. IDs mudam entre teams. Tabelas em [linear-work](../linear-work/SKILL.md).
 
 ---
 
 ## COMENTARIOS OBRIGATORIOS
 
 ### Quando Adicionar Comentario
-- **Sempre** ao mover issue para Review
+- **Sempre** ao mover issue pra Review
 - **Sempre** ao concluir sub-issues
 - **Opcional** em outras transicoes
 
@@ -144,7 +174,7 @@ Mapear os states consultados para:
 ✅ Pronto para revisao
 ```
 
-### Mutation para Comentar
+### Mutation pra Comentar
 
 ```graphql
 mutation {
@@ -159,24 +189,14 @@ mutation {
 
 ---
 
-## LABEL CLAUDE (obrigatoria para tasks feitas pelo Claude Code)
+## LABEL CLAUDE (obrigatoria pra tasks feitas pelo Claude Code)
 
-### Label
 | Label | ID | Uso |
-|-------|-----|-----|
-| Claude | _consultar via query_ | Tasks executadas por Claude Code |
-
-### Consultar Label ID
-```graphql
-{
-  issueLabels(filter: { name: { eq: "Claude" } }) {
-    nodes { id name }
-  }
-}
-```
+|-------|----|----|
+| Claude | `6dad8eed-291b-413b-9bfc-524e7aae0521` | Tasks executadas por Claude Code |
 
 ### Adicionar Label a Issue
-Usar `labelIds` no `issueCreate` ou `issueUpdate`:
+
 ```graphql
 mutation {
   issueUpdate(id: "ISSUE_ID", input: {
@@ -187,33 +207,23 @@ mutation {
 }
 ```
 
-> **Cuidado**: `labelIds` SUBSTITUI todas as labels. Primeiro consultar labels existentes da issue, depois passar o array completo incluindo a nova.
-
----
-
-## Labels Conhecidas
-
-| Label | ID | Uso |
-|-------|----|-----|
-| frontend | `27e77b77-aa4a-41ec-b8fe-bd0a9b86b58c` | UI/frontend |
-| backend | `7bcc0759-f2a7-4184-b4f7-df2256f1eeb5` | API/backend |
-| ai | `66de6fae-5f2f-46f8-af7f-72dabefb20fc` | Inteligencia artificial |
-| devops | `e47f1131-2f62-4ec2-ab19-5a1d93b06834` | Infra/CI/CD |
-| Feature | `d046098f-3937-4a28-bf19-57082d9bff71` | Nova funcionalidade |
-| Improvement | `3f2c540f-923b-4a4b-9bf1-69e61c3be161` | Melhoria |
-| Bug | `0fab8687-157d-4d07-bddc-f68a3f1fd887` | Correcao de bug |
+> **Cuidado:** `labelIds` SUBSTITUI todas as labels. Sempre consultar existentes da issue antes, depois passar array completo.
 
 ---
 
 ## Mutations Reference
 
-### 1. Criar Projeto
+### 1. Criar Projeto (v2 — sempre via project template)
+
+**Pergunta obrigatoria ao user:** "Software Development ou AI Development?"
+
 ```graphql
 mutation {
   projectCreate(input: {
     name: "Nome do Projeto"
     description: "Descricao curta (max 255 chars)"
     teamIds: ["TEAM_ID"]
+    templateId: "<software_dev_or_ai_dev_id>"   # OBRIGATORIO v2
     state: "started"
     targetDate: "2026-MM-DD"
   }) {
@@ -222,7 +232,14 @@ mutation {
 }
 ```
 
+**Templates:**
+- Software Development: `2cfa380e-7552-4eee-b50f-a56a960054e2` (5 milestones M0-M4)
+- AI Development: `e4265043-9517-455c-8866-837f01404adc` (5 milestones M0-M4)
+
+**Linear cria os milestones automaticamente.** Nao precisa criar manualmente.
+
 ### 2. Linkar Projeto a Initiative
+
 ```graphql
 mutation {
   initiativeToProjectCreate(input: {
@@ -233,44 +250,103 @@ mutation {
   }
 }
 ```
-> Initiative "Receita Propria Q1 2026": `be9540d9-2675-4dc8-bcde-acb11d409db5`
 
-### 3. Criar Milestone (Epico)
+> Initiatives ativas (consultar via `query { initiatives { nodes { id name owner { name } } } }`). Existem ~10 por tema.
+
+### 3. Criar Milestone Adicional (raro — templates ja criam M0-M4)
+
 ```graphql
 mutation {
   projectMilestoneCreate(input: {
-    name: "EP-01: Nome do Epico"
+    name: "M5 — Nome do Epico Extra"
     projectId: "PROJECT_ID"
+    targetDate: "2026-MM-DD"   # recomendado obrigatorio v2
   }) {
     projectMilestone { id name }
   }
 }
 ```
 
-### 4. Criar Issue
+### 4. Criar Issue (v2 — SEMPRE via templateId)
+
+**Pergunta consolidada UNICA ao user (Soul axioma 5):**
+
+```
+Vou criar issue com template: {Template (Feature/Bug/Hotfix/Refactor/Spike/Report/Knowledge)}
+
+Confirme/preencha:
+- Titulo: ?
+- Team: IA / IAP / WFW
+- Project: {listar ativos}, ou outro?
+- Milestone: {listar do project}, ou nenhum?
+- Estimate (1/2/3/5/8/13): ?
+- Due date: ? (obrigatorio se Hotfix)
+- Solicitante / Beneficiario: @quem?
+- Reportar quando concluido? (s/n)
+- Atribuir a: viewer (default), ou outro?
+```
+
+**Mutation:**
+
 ```graphql
 mutation {
   issueCreate(input: {
-    title: "Nome da issue"
+    title: "Titulo claro e especifico"
     teamId: "TEAM_ID"
+    templateId: "<TEMPLATE_ID>"            # OBRIGATORIO v2
     projectId: "PROJECT_ID"
     projectMilestoneId: "MILESTONE_ID"
-    stateId: "STATE_ID"
-    priority: 2
     estimate: 3
     dueDate: "2026-MM-DD"
-    labelIds: ["LABEL_ID"]
     assigneeId: "USER_ID"
+    labelIds: [
+      "<TYPE_LABEL_ID>",                    # OBRIGATORIO incluir Type/* do template
+      "<SOURCE_LABEL_ID>",                  # se Reportar=sim
+      "<COMPONENT_LABEL_ID>"                # opcional
+    ]
   }) {
     issue { id identifier title url }
   }
 }
 ```
 
-Priority: 0=None, 1=Urgent, 2=High, 3=Medium, 4=Low
-Estimate: pontos de story (1, 2, 3, 5, 8, 13)
+**Priority:** vem do template (Bug=2, Hotfix=1, Feature/Spike/Report=3, Refactor/Knowledge=4). Override so se necessario via `priority: N`.
+
+**ATENCAO sobre `labelIds` + `templateId`:**
+- Linear behavior testado: `labelIds` SOBRESCREVE labels do template.
+- Solucao: SEMPRE incluir `<TYPE_LABEL_ID>` no array junto com extras.
+- Se nao precisa de extras, omitir `labelIds` (template aplica Type/* sozinho).
+
+**Reportar gate (pos-criacao se Reportar=sim):**
+1. Buscar/criar `Source/<slug>` label
+2. issueUpdate com novo description tendo `- [x] Reportar` (Linear re-converte ProseMirror)
+
+```graphql
+# Buscar Source/<slug>
+{ issueLabels(filter: { name: { eq: "Source/<slug>" } }) { nodes { id } } }
+
+# Criar se nao existe
+mutation {
+  issueLabelCreate(input: {
+    name: "Source/<slug>"
+    color: "#f2994a"
+    description: "Source — dispara notificacao Discord/email no Done"
+  }) { issueLabel { id } }
+}
+
+# Patch description marcando Reportar=true
+mutation {
+  issueUpdate(id: "ISSUE_ID", input: {
+    description: "{description COM `- [x] Reportar` no final}"
+    labelIds: ["TYPE_LABEL_ID", "SOURCE_LABEL_ID"]
+  }) { issue { identifier } }
+}
+```
 
 ### 5. Criar Sub-issue
+
+Sub-issues geralmente herdam contexto da pai. Template e opcional.
+
 ```graphql
 mutation {
   issueCreate(input: {
@@ -278,6 +354,7 @@ mutation {
     teamId: "TEAM_ID"
     parentId: "PARENT_ISSUE_ID"
     stateId: "STATE_ID"
+    templateId: "<template_id>"   # opcional
   }) {
     issue { id identifier }
   }
@@ -285,6 +362,7 @@ mutation {
 ```
 
 ### 6. Atualizar Issue (mover estado, atribuir, etc.)
+
 ```graphql
 mutation {
   issueUpdate(id: "ISSUE_ID", input: {
@@ -300,6 +378,7 @@ mutation {
 ```
 
 ### 7. Criar Cycle (Sprint)
+
 ```graphql
 mutation {
   cycleCreate(input: {
@@ -314,6 +393,7 @@ mutation {
 ```
 
 ### 8. Adicionar Comentario
+
 ```graphql
 mutation {
   commentCreate(input: {
@@ -328,6 +408,26 @@ mutation {
 ---
 
 ## Queries Reference
+
+### Listar Initiatives Ativas (v2)
+```graphql
+{
+  initiatives(filter: { status: { eq: "Active" } }) {
+    nodes { id name status owner { name } }
+  }
+}
+```
+
+### Listar Templates do Workspace
+```graphql
+{
+  organization {
+    templates {
+      nodes { id name type }
+    }
+  }
+}
+```
 
 ### Listar Projetos do Team
 ```graphql
@@ -353,9 +453,7 @@ mutation {
         assignee { name }
         projectMilestone { name }
         labels { nodes { name } }
-        priority
-        estimate
-        dueDate
+        priority estimate dueDate
       }
     }
   }
@@ -365,7 +463,7 @@ mutation {
 ### Buscar Issue por Identifier
 ```graphql
 {
-  issueSearch(query: "IMP-123", first: 1) {
+  issueSearch(query: "IA-123", first: 1) {
     nodes {
       id identifier title
       state { id name type }
@@ -382,7 +480,7 @@ mutation {
 {
   project(id: "PROJECT_ID") {
     projectMilestones {
-      nodes { id name sortOrder }
+      nodes { id name targetDate sortOrder }
     }
   }
 }
@@ -391,17 +489,17 @@ mutation {
 ### Consultar Labels
 ```graphql
 {
-  issueLabels(first: 50) {
-    nodes { id name color }
+  issueLabels(first: 200) {
+    nodes { id name color parent { name } }
   }
 }
 ```
 
 ---
 
-## Workflow Autonomo: Mover Issue para Review
+## Workflow Autonomo: Mover Issue pra Review
 
-Quando uma task e concluida pelo Claude Code, executar TODOS estes passos em sequencia:
+Quando task concluida pelo Claude Code, executar TODOS estes passos:
 
 ### Passo 1: Consultar issue atual
 ```graphql
@@ -416,141 +514,76 @@ Quando uma task e concluida pelo Claude Code, executar TODOS estes passos em seq
 }
 ```
 
-### Passo 2: Consultar state "Review" do team
+### Passo 2: Consultar state "In Review" do team
 ```graphql
 { team(id: "TEAM_ID") { states { nodes { id name type } } } }
 ```
 
-### Passo 3: Consultar label "Claude"
-```graphql
-{ issueLabels(filter: { name: { eq: "Claude" } }) { nodes { id name } } }
-```
-
-### Passo 4: Atualizar issue (estado + label Claude)
+### Passo 3: Atualizar issue (estado + label Claude)
 ```graphql
 mutation {
   issueUpdate(id: "ISSUE_ID", input: {
     stateId: "REVIEW_STATE_ID"
-    labelIds: ["...labels_existentes...", "CLAUDE_LABEL_ID"]
+    labelIds: ["...labels_existentes...", "6dad8eed-291b-413b-9bfc-524e7aae0521"]
   }) {
     issue { identifier state { name } labels { nodes { name } } }
   }
 }
 ```
 
-### Passo 5: Adicionar comentario detalhado
-```graphql
-mutation {
-  commentCreate(input: {
-    issueId: "ISSUE_ID"
-    body: "## 🤖 Task executada por Claude Code\n\n### O que foi feito\n- ...\n\n### Como foi feito\n- ...\n\n### Arquivos alterados\n- ...\n\n### Testes\n- ...\n\n### Observacoes para o Revisor\n- ...\n\n### Status\n✅ Pronto para revisao humana"
-  }) {
-    comment { id }
-  }
-}
-```
+### Passo 4: Adicionar comentario detalhado
+(Ver template em "COMENTARIOS OBRIGATORIOS")
 
-### Passo 6: Informar o usuario
+### Passo 5: Informar usuario
 ```
-✅ Issue {IDENTIFIER} movida para Review
+✅ Issue {IDENTIFIER} movida para In Review
    - Label "Claude" adicionada
    - Comentario detalhado adicionado
-   - ⏳ Aguardando revisao humana para mover para Done
+   - ⏳ Aguardando revisao humana (Danilo / Joao)
 ```
 
 ---
 
-## Workflow Padrao para Novo Projeto
+## Workflow Padrao pra Novo Projeto (v2 — via project template)
 
-1. **Perguntar**: nome do projeto, team (IA, WFW ou IAP), descricao
-2. **Consultar states** do team escolhido
-3. **Consultar labels** disponiveis
-4. **Criar projeto** com projectCreate
-5. **(Opcional)** Linkar a initiative existente
-6. **SEMPRE criar EP-00: Setup & Infraestrutura** (ver template abaixo)
-7. **Perguntar milestones adicionais** (epicos) — nomes e descricoes
-8. **Criar milestones** com projectMilestoneCreate
-9. **Perguntar issues** por milestone — titulo, label, priority, estimate, dueDate, assignee
-10. **Criar issues** com issueCreate linkando ao milestone (estado inicial: Backlog ou To Do)
-11. **(Opcional)** Criar sub-issues se necessario
-12. **Resumir** tudo criado com tabela organizada
+1. **Perguntar ao user (UMA mensagem):**
+   - Nome do projeto
+   - Team (IA/IAP/WFW)
+   - **Software Development ou AI Development?** (escolhe project template)
+   - Descricao curta
+   - Initiative pai (opcional)
+   - Target date (opcional)
 
----
+2. **Criar projeto com `templateId`:**
+   ```graphql
+   mutation {
+     projectCreate(input: {
+       name: "..."
+       teamIds: ["..."]
+       templateId: "2cfa380e-..." OR "e4265043-..."
+       description: "..."
+       state: "started"
+     }) { project { id name } }
+   }
+   ```
 
-## Template EP-00: Setup & Infraestrutura (OBRIGATORIO em todo projeto novo)
+3. **Linear automaticamente cria 5 milestones (M0-M4) baseados no template.**
 
-Todo projeto novo da Impeto DEVE comecar com o milestone EP-00 contendo estas 4 tasks padrao.
-Adaptar descricoes conforme a stack do projeto (Python, Go, Next.js, etc).
+4. **(Opcional)** Linkar a Initiative existente:
+   ```graphql
+   mutation {
+     initiativeToProjectCreate(input: {
+       initiativeId: "<initiative_id>"
+       projectId: "<new_project_id>"
+     }) { initiativeToProject { id } }
+   }
+   ```
 
-### Milestone
-```
-EP-00: Setup & Infraestrutura (sortOrder: 0 — sempre primeiro)
-```
+5. **(Opcional)** Adicionar issues iniciais por milestone (sempre via template):
+   - Pra cada milestone, perguntar quais issues
+   - Cada issue criada com `templateId` correspondente (Feature/Bug/Spike/etc)
 
-### Task 1: Setup do Repositorio
-```
-Titulo: Setup do Repositorio
-Estado: Todo
-Prioridade: Urgent (1)
-Labels: devops, backend
-Descricao:
-  - Criar repo na org impeto-ai (GitHub)
-  - Branch protection em main (require PR + 1 review)
-  - .gitignore (adequado a stack)
-  - .editorconfig
-  - CLAUDE.md com instrucoes do projeto (stack, convencoes, comandos)
-  - .env.example com todas as variaveis documentadas
-  - README minimo (como rodar, pre-requisitos)
-  Criterio de Done: outro dev consegue clonar e rodar
-```
-
-### Task 2: Provisionar Infraestrutura
-```
-Titulo: Provisionar Infraestrutura
-Estado: Todo
-Prioridade: High (2)
-Labels: devops
-Descricao:
-  - Criar projeto no Supabase / banco escolhido
-  - Provisionar hosting (Railway / GCP Cloud Run / outro)
-  - Configurar secrets no hosting
-  - Dominio/DNS (se aplicavel)
-  - Variaveis de ambiente em staging
-  Criterio de Done: ambiente staging acessivel com banco conectado
-```
-
-### Task 3: CI/CD Base
-```
-Titulo: CI/CD Base
-Estado: Backlog
-Prioridade: Medium (3)
-Labels: devops
-Descricao:
-  - GitHub Actions: lint + test no PR
-  - Deploy automatico em staging no merge em main
-  - Secrets configurados no GitHub
-  Criterio de Done: PR roda checks automaticos, merge em main faz deploy em staging
-```
-
-### Task 4: Onboarding do Time
-```
-Titulo: Onboarding do Time
-Estado: Backlog
-Prioridade: Medium (3)
-Labels: devops
-Descricao:
-  - Cada dev roda setup local e confirma que projeto roda
-  - Rodar linear-setup.sh (instalar skills Linear)
-  - /linear-init para carregar contexto
-  - Primeiro PR de teste (pode ser trivial)
-  Criterio de Done: todos os devs do projeto com ambiente rodando e Linear integrado
-```
-
-### Notas
-- Tasks 1 e 2 em **Todo** (prontas pra pegar imediatamente)
-- Tasks 3 e 4 em **Backlog** (dependem das primeiras)
-- Adaptar descricoes conforme stack (ex: se nao usa Supabase, trocar na Task 2)
-- O responsavel por EP-00 e sempre o **dev lead** do projeto
+6. **Resumir** ao user com tabela do que foi criado.
 
 ---
 
@@ -562,7 +595,7 @@ feat/{IDENTIFIER}-{slug}     → feature
 fix/{IDENTIFIER}-{slug}      → bugfix
 chore/{IDENTIFIER}-{slug}    → infra/devops
 ```
-Exemplo: `feat/IMP-124-configurar-api-key`
+Exemplo: `feat/IA-124-configurar-api-key`
 
 ### Commit
 ```
@@ -570,7 +603,7 @@ feat: descricao curta [{IDENTIFIER}]
 fix: corrigir bug [{IDENTIFIER}]
 chore: configuracao [{IDENTIFIER}]
 ```
-Exemplo: `feat: setup supabase auth [IMP-111]`
+Exemplo: `feat: setup supabase auth [IA-111]`
 
 ### PR Description
 ```markdown
@@ -588,27 +621,54 @@ Closes {IDENTIFIER}
 
 ---
 
+## Validacao Pre-Criacao (v2 — checklist obrigatorio)
+
+Antes de chamar `issueCreate`, garantir:
+
+| Campo | Obrigatorio | Como validar |
+|-------|-------------|--------------|
+| `templateId` | sim | 1 dos 7 IDs |
+| `<TYPE_LABEL_ID>` no labelIds | sim (se passar labelIds) | senao `templateId` aplica sozinho |
+| `dueDate` | sim se Hotfix | regra: Hotfix sem dueDate = recusa |
+| `Reportar?` perguntado ao user | **sim, sempre** | Source/* aplicada se Reportar=sim |
+| `projectMilestoneId` | recomendado | issue ficar orfa do milestone e perda |
+
+Antes de chamar `projectCreate`:
+
+| Campo | Obrigatorio | Validacao |
+|-------|-------------|-----------|
+| `templateId` | **sim, v2** | Software Dev OU AI Dev |
+| `teamIds` | sim | 1 dos 3 teams |
+
+---
+
 ## Gotchas & Limites
 
 - `description` do projeto: max **255 caracteres**
-- `initiativeId` NAO funciona em `projectCreate` — usar mutation separada `initiativeToProjectCreate`
-- `parentId` (nao `parent_id`) para sub-issues
+- `initiativeId` NAO funciona em `projectCreate` — usar `initiativeToProjectCreate` separado
+- `parentId` (nao `parent_id`) pra sub-issues
 - `labelIds` no update **SUBSTITUI** todas as labels — sempre consultar existentes antes
-- Query complexity limit: **10.000** — limitar `first: 100` e evitar campos aninhados demais
-- Labels: verificar IDs antes de usar (podem mudar entre workspaces)
-- Cycles no Linear sao automaticos por data (ativam quando a data chega)
-- **Segregacao**: Linear nao segrega por projeto, apenas por Team
+- Query complexity limit: **10000** — limitar `first: 100` e evitar campos aninhados demais
+- Cycles no Linear sao automaticos por data (ativam quando data chega)
+- **Segregacao:** Linear nao segrega por projeto, apenas por Team
+- **(v2)** `templateId` em `issueCreate` aplica description + Type/* label + priority do template. Se passar `labelIds` JUNTO, sobrescreve labels — sempre incluir Type/* manualmente
+- **(v2)** `templateId` em `projectCreate` cria milestones automaticamente — nao precisa criar manualmente
 
 ## Common Mistakes
 
-- Esquecer de consultar os states do team antes de criar issues (IDs mudam entre teams)
+- Esquecer de consultar states do team antes de criar issues (IDs mudam entre teams)
 - Usar `parent_id` ao inves de `parentId`
 - Description do projeto com mais de 255 chars (API rejeita)
-- Criar issues sem `projectMilestoneId` (ficam orfas, sem milestone)
-- Query GraphQL muito complexa (usar `first: 100`, evitar nested relations)
+- Criar issues sem `projectMilestoneId` (ficam orfas)
+- Query GraphQL muito complexa (usar `first: 100`)
 - Nao linkar initiative separadamente (nao e campo do projectCreate)
 - **Pular o estado Review** — NUNCA fazer In Progress → Done direto
-- **Mover para Done sem aprovacao humana** — NUNCA, sempre aguardar revisao
-- **Esquecer de adicionar label Claude** quando task foi feita pelo Claude Code
-- **Esquecer comentario detalhado** ao mover para Review
-- **Sobrescrever labels** usando `labelIds` sem consultar as existentes primeiro
+- **Mover pra Done sem aprovacao humana** — NUNCA, gate executive Joao
+- **Esquecer de adicionar label Claude** quando task feita pelo Claude Code
+- **Esquecer comentario detalhado** ao mover pra Review
+- **Sobrescrever labels** usando `labelIds` sem consultar existentes
+- **(v2) Criar issue sem `templateId`** — fora da disciplina v2, fora dos relatorios
+- **(v2) Esquecer pergunta "Reportar quando concluido?"** — webhook n8n nao notifica solicitante
+- **(v2) Passar `labelIds` junto com `templateId` SEM incluir Type/* correspondente** — sobrescreve template
+- **(v2) Criar projeto sem `templateId`** — perde os 5 milestones automaticos
+- **(v2) Fazer 5-6 perguntas separadas ao user** — Soul axioma 5: UMA pergunta consolidada
