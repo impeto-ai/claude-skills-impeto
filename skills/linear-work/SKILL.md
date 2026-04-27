@@ -1,17 +1,17 @@
 ---
 name: linear-work
-description: Operational skill for day-to-day Linear task management. View personal tasks, move states, create issues, add comments. Activates for "linear-work", "minhas tasks", "mover task", "criar issue", "comentar issue", "atualizar linear".
+description: Operational skill for day-to-day Linear task management (v2 — templates obrigatorios). View personal tasks, move states, create issues, add comments. Activates for "linear-work", "minhas tasks", "mover task", "criar issue", "comentar issue", "atualizar linear".
 chain: none
 ---
 
-# Linear Work - Operacao Diaria
+# Linear Work - Operacao Diaria (v2 — templates + Reportar gate)
 
-Skill operacional para o dia-a-dia do dev. Foco em tasks pessoais, movimentacao de estados, criacao de issues e comentarios.
+Skill operacional pro dia-a-dia do dev. Foco em tasks pessoais, movimentacao de estados, criacao de issues **sempre via template**, comentarios.
 
 ## When to Use
 - Ver minhas tasks atuais
-- Mover task entre estados (To Do → In Progress → Review)
-- Criar nova issue/sub-issue
+- Mover task entre estados (To Do → In Progress → In Review)
+- Criar nova issue/sub-issue (sempre escolhe template)
 - Adicionar comentario em issue
 - Atualizar prioridade, estimate, due date
 - NOT when: criar projetos/milestones (use /linear-pm)
@@ -21,40 +21,29 @@ Skill operacional para o dia-a-dia do dev. Foco em tasks pessoais, movimentacao 
 
 ## PASSO 0: VERIFICAR API KEY (OBRIGATORIO)
 
-**ANTES DE QUALQUER COISA**, verificar se existe a variavel `LINEAR_API_KEY`:
+**ANTES DE QUALQUER COISA**, verificar `LINEAR_API_KEY`:
 
-1. Procurar `.env` no diretorio atual do projeto
-2. Se nao encontrar, procurar em `~/.claude/.env`
-3. Se nao encontrar em nenhum dos dois:
+1. `.env` no diretorio atual
+2. Senao, `~/.claude/.env`
+3. Se nao encontrar:
 
 ```
 ⚠️  LINEAR_API_KEY nao encontrada!
-
-Solicite sua key ao seu manager (Joao - joao@impeto.ai).
-
-Apos receber:
-1. Crie .env na raiz do projeto: LINEAR_API_KEY=lin_api_XXXXX
-2. Rode /linear-init para carregar o contexto
+Solicite ao manager (Joao - joao@impeto.ai).
+Apos receber: crie .env com LINEAR_API_KEY=lin_api_XXXXX → /linear-init
 ```
 
-**PARAR AQUI se nao encontrar a key. Nao tentar nenhuma operacao.**
+**PARAR se nao encontrar.**
 
 ---
 
-## IDENTIFICAR USUARIO (OBRIGATÓRIO — ANTES DE QUALQUER OPERAÇÃO)
-
-**PRIMEIRO PASSO DE TUDO**: consultar o viewer pra saber QUEM é o usuário:
+## IDENTIFICAR USUARIO (OBRIGATORIO)
 
 ```graphql
 { viewer { id name email } }
 ```
 
-**GUARDAR o `id` do viewer** — usar em TODA operação:
-- `assigneeId: "VIEWER_ID"` ao criar issues (default: atribuir ao viewer)
-- Filtrar tasks por `assignee.id == VIEWER_ID`
-- Identificar no comentário quem executou
-
-**NÃO PROSSEGUIR sem ter o viewer.id.** Se a query falhar, a API key está errada.
+Guardar `viewer.id` — usar como `assigneeId` default em criacao de issues e como filtro em "minhas tasks".
 
 ---
 
@@ -101,13 +90,19 @@ Apresentar agrupado por estado:
 
 ### 2. MOVER TASK
 
-**REGRAS INVIOLAVEIS:**
-- NUNCA pular "In Review" — In Progress vai para In Review, NUNCA direto para Done
-- NUNCA mover de In Review → Done — somente humano aprova
-- Ao mover para In Review: OBRIGATORIO adicionar comentario detalhado
-- Se task feita pelo Claude Code: OBRIGATORIO adicionar label "Claude"
+**REGRAS INVIOLAVEIS (v2):**
+- NUNCA pular "In Review" — In Progress → In Review, NUNCA direto pra Done
+- NUNCA mover de In Review → Done — somente humano (Joao gate executive)
+- Ao mover pra In Review: OBRIGATORIO comentario detalhado
+- Se task feita pelo Claude Code: OBRIGATORIO label `Claude`
 
-**Workflow de estados por team:**
+**State Ownership (v2 — papeis Innovagro/IAP):**
+- **Emanuel Montenegro** = triagem (Backlog/Todo → In Progress)
+- **Danilo Saraiva** = review tecnico (In Progress → In Review)
+- **Joao Nascimento** = gate humano executive (In Review → Done — raro, geralmente Danilo fecha)
+- IA/WFW: Joao decide quem move state (mais flexivel)
+
+**IDs de states por team:**
 
 | Team | Backlog | Todo | In Progress | In Review | Done | Canceled |
 |------|---------|------|-------------|-----------|------|----------|
@@ -115,7 +110,7 @@ Apresentar agrupado por estado:
 | WFW | `6a17e88b` | `73c302a8` | `ada57e06` | `375f55a8` | `dbb124d1` | `f5d62680` |
 | IA  | `4e00167a` | `4e4c1171` | `08c23863` | `e23d1ccd` | `2fe9f7ed` | `1566587e` |
 
-**IDs completos:**
+**IDs completos (referencia):**
 
 | Team | State | ID |
 |------|-------|----|
@@ -138,7 +133,7 @@ Apresentar agrupado por estado:
 | IA | Done | `2fe9f7ed-200c-40f1-804a-73725e61183d` |
 | IA | Canceled | `1566587e-db99-4718-a24f-3df272dcdb27` |
 
-**Mutation para mover:**
+**Mutation pra mover:**
 ```graphql
 mutation {
   issueUpdate(id: "ISSUE_ID", input: {
@@ -149,9 +144,9 @@ mutation {
 }
 ```
 
-### 3. MOVER PARA REVIEW (workflow especial)
+### 3. MOVER PARA IN REVIEW (workflow especial)
 
-Ao mover para In Review, executar TODOS os passos:
+Ao mover pra In Review, executar TODOS os passos:
 
 **3a.** Consultar issue atual (pegar labels existentes):
 ```graphql
@@ -196,42 +191,127 @@ mutation {
 ✅ {IDENTIFIER} movida para In Review
    - Label "Claude" adicionada
    - Comentario detalhado adicionado
-   - Aguardando revisao humana para Done
+   - Aguardando revisao humana (Danilo / Joao)
 ```
 
-### 4. CRIAR ISSUE
+### 4. CRIAR ISSUE (v2 — SEMPRE via template + Reportar gate)
 
-Perguntar ao usuario:
-- Titulo
-- Team (IAP, WFW, IA)
-- Projeto (listar projetos ativos do team)
-- Milestone (listar milestones do projeto)
-- Prioridade (1=Urgent, 2=High, 3=Medium, 4=Low)
-- Estimate (1, 2, 3, 5, 8, 13 pontos)
-- Labels (listar disponiveis)
-- Due date (opcional)
-- Atribuir a quem? (default: viewer)
+**REGRAS:**
+1. **SEMPRE escolher um dos 7 templates** (Feature/Bug/Hotfix/Refactor/Spike/Report/Knowledge). Se nao da pra inferir do contexto, perguntar.
+2. **SEMPRE perguntar "Reportar quando concluido?"** antes de criar.
+3. **UMA pergunta consolidada multi-campo** — nao 5-6 perguntas separadas.
+
+**Fluxo conversacional:**
+
+#### Step A — Inferir ou perguntar template
+
+Inferir do contexto se possivel:
+- "fix", "quebrou", "erro" → Bug
+- "implementar", "adicionar", "nova funcionalidade" → Feature
+- "urgente prod parado" → Hotfix
+- "limpar codigo", "renomear", "extrair" → Refactor
+- "investigar", "POC", "spike" → Spike
+- "relatorio", "dashboard", "analise" → Report
+- "documentar", "ata reuniao", "transcricao" → Knowledge
+
+Se nao da pra inferir → perguntar:
+```
+Qual template? Feature / Bug / Hotfix / Refactor / Spike / Report / Knowledge
+```
+
+#### Step B — Pergunta consolidada UNICA (Soul axioma 5)
+
+Faz UMA mensagem so com tudo:
+
+```
+Vou criar issue com template: {Template}
+
+Por favor confirme/preencha:
+- Titulo: {sugerido baseado no contexto, ou "?"}
+- Team: IAP / WFW / IA  (default: IA)
+- Project: {listar 3 projetos ativos do team default}, ou outro?
+- Milestone: {listar do project escolhido}, ou nenhum?
+- Priority: {default do template — Bug=2, Hotfix=1, Feature/Spike/Report=3, Refactor/Knowledge=4}
+- Estimate (1/2/3/5/8/13): ?
+- Due date: ?  (opcional, mas obrigatorio se Hotfix)
+- Solicitante: @quem? (do template)
+- Beneficiario: @quem ou cliente:slug? (do template)
+- Reportar quando concluido? (s/n)  ← novo
+- Atribuir a: viewer (default), ou outro?
+```
+
+#### Step C — Mutation com templateId
 
 ```graphql
 mutation {
   issueCreate(input: {
-    title: "Titulo"
+    title: "Titulo claro e especifico"
     teamId: "TEAM_ID"
-    projectId: "PROJECT_ID"
-    projectMilestoneId: "MILESTONE_ID"
-    stateId: "TODO_STATE_ID"
-    priority: 3
+    templateId: "<template_id>"          # populá description + priority + Type/* label
+    projectId: "PROJECT_ID"               # opcional
+    projectMilestoneId: "MILESTONE_ID"    # opcional
     estimate: 3
-    dueDate: "2026-MM-DD"
-    labelIds: ["LABEL_IDS"]
-    assigneeId: "USER_ID"
+    dueDate: "2026-MM-DD"                 # obrigatorio se Hotfix
+    assigneeId: "USER_ID"                 # default: viewer.id
+    labelIds: ["<TYPE_LABEL_ID>", "<EXTRAS>..."]   # ATENÇÃO: ver nota abaixo
   }) {
     issue { id identifier title url }
   }
 }
 ```
 
-### 5. CRIAR SUB-ISSUE
+**ATENCAO sobre `labelIds` + `templateId`:**
+- Linear comportamento testado: passar `labelIds` JUNTO com `templateId` **SOBRESCREVE** as labels do template (nao adiciona).
+- Solucao: SEMPRE incluir o `Type/*` label correspondente no array, junto com extras.
+- Se nao precisa de labels extras, OMITIR `labelIds` (deixa o template aplicar so o Type/*).
+
+**Type/* label IDs (sempre incluir o do template escolhido):**
+
+| Template | Type/* label ID |
+|----------|-----------------|
+| Feature | `d046098f-3937-4a28-bf19-57082d9bff71` |
+| Bug | `0fab8687-157d-4d07-bddc-f68a3f1fd887` |
+| Hotfix | `e05992d5-f5ae-45e6-8f2f-27ab187157b3` |
+| Refactor | `860bbe5a-c1d5-4104-bbe2-15c899f309db` |
+| Spike | `dc6567c6-b5a8-4cb6-a742-1b078cc5e54f` |
+| Report | `1018beba-b5d4-4a96-8766-d6f18c4c3df9` |
+| Knowledge | `3a4669b3-4b92-4b0d-a37d-a5683c186463` |
+
+#### Step D — Pos-criacao: Reportar gate
+
+Se usuario respondeu **Reportar = sim**:
+1. Buscar/criar `Source/<slug>` label (slug = solicitante ou cliente)
+2. Atualizar issue marcando o checkbox `Reportar` no description (descriptionData patch — ver nota abaixo) E adicionar `Source/<slug>` aos labelIds
+
+Se usuario respondeu **Reportar = nao**:
+- Deixa default (checkbox desmarcado, sem Source label)
+
+**Mutation pra criar Source/<slug> se nao existe:**
+```graphql
+mutation {
+  issueLabelCreate(input: {
+    name: "Source/<slug>"
+    color: "#f2994a"
+    description: "Solicitante/beneficiario que dispara notificacao no Done"
+  }) { issueLabel { id name } }
+}
+```
+
+**Patch descriptionData pra marcar checkbox Reportar=true:**
+- Mais simples: `issueUpdate(input: { description: "...new markdown com - [x] Reportar..." })`
+- Linear re-converte markdown para descriptionData ProseMirror automaticamente.
+
+#### Step E — Confirmar ao usuario
+
+```
+✅ Issue {IDENTIFIER} criada
+   Template: {Template} | Priority: {N} | Reportar: {sim/nao}
+   URL: {url}
+```
+
+### 5. CRIAR SUB-ISSUE (templateId opcional)
+
+Sub-issues geralmente NAO precisam template (herdam contexto da pai). Mas se for Bug/Spike especifico, vale.
 
 ```graphql
 mutation {
@@ -241,6 +321,7 @@ mutation {
     parentId: "PARENT_ISSUE_ID"
     stateId: "TODO_STATE_ID"
     assigneeId: "USER_ID"
+    templateId: "<template_id>"   # opcional
   }) {
     issue { id identifier title }
   }
@@ -283,20 +364,58 @@ mutation {
 
 ---
 
+## Templates do Workspace (referencia rapida)
+
+### Issue Templates (workspace, todos teams herdam)
+
+| Template | ID | Type/* aplicado | Priority default |
+|----------|----|----|----|
+| Feature | `e682d84c-1e1c-40e7-bdd6-19853c4a577f` | Type/Feature | 3 |
+| Bug | `7c547bce-b64b-46ef-8e76-80ca5b234637` | Type/Bug | 2 |
+| Hotfix | `8357bb00-4618-4474-9351-5a95c47d572e` | Type/Hotfix | 1 |
+| Refactor | `85878d0f-b983-4ce7-9662-b15546c0494f` | Type/Refactor | 4 |
+| Spike | `f9c21b5c-6a74-4b53-a4cb-94fa038e3219` | Type/Spike | 3 |
+| Report | `bc934845-83d0-4b7d-b613-8b64425498b7` | Type/Report | 3 |
+| Knowledge | `3ca2d511-8c86-432a-b374-2daef63f15ce` | Type/Knowledge | 4 |
+
 ## Labels Conhecidas
 
+### Type group (Type/*) — exclusivo, OBRIGATORIO via template
+Ver tabela acima.
+
+### Origem
 | Label | ID |
 |-------|----|
 | Claude | `6dad8eed-291b-413b-9bfc-524e7aae0521` |
-| Frontend | `74550db2-01cb-4da8-b6d0-13d4507427d7` |
-| Backend | `c430dcd3-6b98-4e84-8101-489f6362c539` |
+
+### Componente (legado — coexistem casing duplicado, cleanup pendente)
+| Label | ID |
+|-------|----|
 | frontend | `27e77b77-aa4a-41ec-b8fe-bd0a9b86b58c` |
 | backend | `7bcc0759-f2a7-4184-b4f7-df2256f1eeb5` |
+| Frontend (cap, WFW) | `74550db2-01cb-4da8-b6d0-13d4507427d7` |
+| Backend (cap, WFW) | `c430dcd3-6b98-4e84-8101-489f6362c539` |
 | ai | `66de6fae-5f2f-46f8-af7f-72dabefb20fc` |
 | devops | `e47f1131-2f62-4ec2-ab19-5a1d93b06834` |
-| Feature | `d046098f-3937-4a28-bf19-57082d9bff71` |
-| Improvement | `3f2c540f-923b-4a4b-9bf1-69e61c3be161` |
-| Bug | `0fab8687-157d-4d07-bddc-f68a3f1fd887` |
+
+### Source/* (criada on-demand quando Reportar=sim)
+Pattern: `Source/<slug>` onde slug = `joao`, `mix-alimentos`, `meu-micro`, `agrofarm`, `estimulus`, etc.
+Cor padrao: `#f2994a`. Criada via `issueLabelCreate` se nao existir.
+
+---
+
+## Validacao Pre-Criacao (v2 — checklist obrigatorio)
+
+Antes de chamar `issueCreate`, validar:
+
+- [ ] Template escolhido (1 dos 7)?
+- [ ] Pergunta "Reportar quando concluido?" feita ao usuario?
+- [ ] Se Reportar=sim: `Source/<slug>` label preparada?
+- [ ] Type/* label correspondente no labelIds?
+- [ ] Se Hotfix: dueDate definido?
+- [ ] Title claro e especifico (verbo imperativo + objeto)?
+
+Se algum FALHAR e usuario insistir: PARAR e pedir confirmacao explicita ("Quer mesmo criar issue sem Type? Vai ficar fora dos relatorios.").
 
 ---
 
@@ -313,10 +432,13 @@ mutation {
 - PR: inclui `Closes {IDENTIFIER}` no body
 
 ## Common Mistakes
-- Tentar operar sem API key → PARAR e pedir para chamar o manager
-- Mover direto para Done pulando In Review → NUNCA
-- Mover de In Review para Done → SOMENTE humano
+- Tentar operar sem API key → PARAR
+- Mover direto pra Done pulando In Review → NUNCA
+- Mover de In Review pra Done sem aprovacao humana
 - Esquecer label Claude em tasks feitas pelo Claude Code
-- Esquecer comentario ao mover para In Review
+- Esquecer comentario ao mover pra In Review
 - Usar `labelIds` sem consultar labels existentes (sobrescreve tudo)
-- Usar `parent_id` em vez de `parentId` para sub-issues
+- (v2) **Criar issue sem `templateId`** — fora da disciplina v2
+- (v2) **Esquecer pergunta "Reportar?"** — webhook n8n nao notifica solicitante
+- (v2) Passar `labelIds` junto com `templateId` SEM incluir Type/* label correspondente — sobrescreve template label
+- (v2) Pular pergunta consolidada e fazer 5-6 perguntas separadas — Soul axioma 5
