@@ -104,36 +104,7 @@ Apresentar agrupado por estado:
 - **Joao Nascimento** = gate humano executive (In Review → Done — raro, geralmente Danilo fecha)
 - IA/WFW: Joao decide quem move state (mais flexivel)
 
-**IDs de states por team:**
-
-| Team | Backlog | Todo | In Progress | In Review | Done | Canceled |
-|------|---------|------|-------------|-----------|------|----------|
-| IAP | `864e6d89` | `d9ee0a28` | `63d82e50` | `210d982d` | `782dfd8a` | `ec8f76dd` |
-| WFW | `6a17e88b` | `73c302a8` | `ada57e06` | `375f55a8` | `dbb124d1` | `f5d62680` |
-| IA  | `4e00167a` | `4e4c1171` | `08c23863` | `e23d1ccd` | `2fe9f7ed` | `1566587e` |
-
-**IDs completos (referencia):**
-
-| Team | State | ID |
-|------|-------|----|
-| IAP | Backlog | `864e6d89-2074-4e30-9f94-b5eba62d81a5` |
-| IAP | Todo | `d9ee0a28-e8be-498a-9d52-18641d2f0633` |
-| IAP | In Progress | `63d82e50-5899-4ad4-be39-09d265a3c7e3` |
-| IAP | In Review | `210d982d-f9c1-46e0-9ebb-c8a7ffc1bea8` |
-| IAP | Done | `782dfd8a-f433-43a1-9690-f04d00197dae` |
-| IAP | Canceled | `ec8f76dd-b3c0-4eae-977f-0799f9742fe1` |
-| WFW | Backlog | `6a17e88b-2fe0-4f68-af47-8250b00152a0` |
-| WFW | Todo | `73c302a8-9375-4f10-b03c-4d7e4a3b619c` |
-| WFW | In Progress | `ada57e06-3cd0-4700-8865-a1d8d272b740` |
-| WFW | In Review | `375f55a8-f8fd-459c-a492-8566c4b77f25` |
-| WFW | Done | `dbb124d1-e26e-4397-9e73-44de04149c00` |
-| WFW | Canceled | `f5d62680-5214-42b4-8869-3e30ae228233` |
-| IA | Backlog | `4e00167a-06d2-4dc9-9e4d-d706c3e864b1` |
-| IA | Todo | `4e4c1171-8df3-40e2-9fed-c682f5e787ee` |
-| IA | In Progress | `08c23863-0e85-46fd-851d-48b927855509` |
-| IA | In Review | `e23d1ccd-da99-4572-887f-61e6d0a59e90` |
-| IA | Done | `2fe9f7ed-200c-40f1-804a-73725e61183d` |
-| IA | Canceled | `1566587e-db99-4718-a24f-3df272dcdb27` |
+**IDs de states por team:** ver [`../_linear-shared/state-ids.md`](../_linear-shared/state-ids.md) (single source of truth).
 
 **Mutation pra mover:**
 ```graphql
@@ -365,39 +336,11 @@ mutation {
 
 ---
 
-## Templates do Workspace (referencia rapida)
+## Templates, Type/* labels e outras labels
 
-### Issue Templates (workspace, todos teams herdam)
+**Single source of truth:** [`../_linear-shared/templates.md`](../_linear-shared/templates.md)
 
-| Template | ID | Type/* aplicado | Priority default |
-|----------|----|----|----|
-| Feature | `e682d84c-1e1c-40e7-bdd6-19853c4a577f` | Type/Feature | 3 |
-| Bug | `7c547bce-b64b-46ef-8e76-80ca5b234637` | Type/Bug | 2 |
-| Hotfix | `8357bb00-4618-4474-9351-5a95c47d572e` | Type/Hotfix | 1 |
-| Refactor | `85878d0f-b983-4ce7-9662-b15546c0494f` | Type/Refactor | 4 |
-| Spike | `f9c21b5c-6a74-4b53-a4cb-94fa038e3219` | Type/Spike | 3 |
-| Report | `bc934845-83d0-4b7d-b613-8b64425498b7` | Type/Report | 3 |
-| Knowledge | `3ca2d511-8c86-432a-b374-2daef63f15ce` | Type/Knowledge | 4 |
-
-## Labels Conhecidas
-
-### Type group (Type/*) — exclusivo, OBRIGATORIO via template
-Ver tabela acima.
-
-### Origem
-| Label | ID |
-|-------|----|
-| Claude | `6dad8eed-291b-413b-9bfc-524e7aae0521` |
-
-### Componente (legado — coexistem casing duplicado, cleanup pendente)
-| Label | ID |
-|-------|----|
-| frontend | `27e77b77-aa4a-41ec-b8fe-bd0a9b86b58c` |
-| backend | `7bcc0759-f2a7-4184-b4f7-df2256f1eeb5` |
-| Frontend (cap, WFW) | `74550db2-01cb-4da8-b6d0-13d4507427d7` |
-| Backend (cap, WFW) | `c430dcd3-6b98-4e84-8101-489f6362c539` |
-| ai | `66de6fae-5f2f-46f8-af7f-72dabefb20fc` |
-| devops | `e47f1131-2f62-4ec2-ab19-5a1d93b06834` |
+Inclui: 7 issue templates (Feature/Bug/Hotfix/Refactor/Spike/Report/Knowledge), 2 project templates, Type/* label IDs, label Claude, labels de componente.
 
 ### ~~Source/* (DESCONTINUADO em v2.1)~~
 
@@ -427,11 +370,39 @@ Se algum FALHAR e usuario insistir: PARAR e pedir confirmacao explicita ("Quer m
 - Auth: `Authorization: {LINEAR_API_KEY}`
 - Metodo: POST com body JSON `{"query": "...", "variables": {...}}`
 
-## Convencao Git (ao trabalhar em tasks)
+## Workflow Linear ↔ Git/GitHub (OBRIGATORIO)
 
-- Branch: `feat/{IDENTIFIER}-{slug}` | `fix/{IDENTIFIER}-{slug}`
-- Commit: `feat: descricao [{IDENTIFIER}]`
-- PR: inclui `Closes {IDENTIFIER}` no body
+**Conceito-chave:** integracao nativa Linear-GitHub move a issue automaticamente quando:
+- Branch criada com nome contendo IDENTIFIER → confirma `In Progress`
+- PR ready for review → move pra `In Review`
+- **PR merged → move pra `Done` automaticamente** (gate humano ja feito no merge)
+
+**Pra integracao funcionar, o agent DEVE seguir o fluxo:**
+
+```
+1. Issue ja existe no Linear (criada antes pelo PM/CTO/skill linear-pm)
+2. Agent move issue pra In Progress (operacao 2 desta skill)
+3. Agent cria branch no formato:
+   {usuario}/{identifier-lowercase}-{slug}
+4. Commits citam {IDENTIFIER} no final: "tipo(scope): descricao ({IDENTIFIER})"
+5. Ao abrir PR:
+   - Title: "[{IDENTIFIER}] tipo: descricao"
+   - Body: PRIMEIRA linha "Closes {IDENTIFIER}" (magic word)
+   - Draft inicialmente, depois "Ready for review" → Linear move pra In Review
+6. Merge → Linear fecha issue automaticamente
+```
+
+**TODOS os valores sao DINAMICOS, derivados em runtime:**
+- `{IDENTIFIER}` ← `issue.identifier` retornado pela API Linear. Traz o team key correto (qualquer team do workspace). NUNCA hardcode `IA-`, `WFW-`, `IAP-` etc.
+- `{usuario}` ← primeiro nome de `viewer.name`, lowercase, sem acento. Funciona pra qualquer user que estiver com a API key.
+- `{slug}` ← `issue.title` em kebab-case, sem acento, max ~50 chars.
+
+**Magic words aceitas (qualquer uma fecha a issue no merge):**
+`Closes {IDENTIFIER}` · `Fixes {IDENTIFIER}` · `Resolves {IDENTIFIER}` · `Implements {IDENTIFIER}`
+
+**Detalhes completos, exemplos, comandos `gh` e troubleshooting:** ver [git-workflow.md](git-workflow.md)
+
+**Template de PR body pronto:** ver [templates/pr-body.md](templates/pr-body.md)
 
 ## Common Mistakes
 - Tentar operar sem API key → PARAR
@@ -446,3 +417,7 @@ Se algum FALHAR e usuario insistir: PARAR e pedir confirmacao explicita ("Quer m
 - (v2.1) **Esquecer de fazer `issueUpdate` pos-criacao** preenchendo Solicitante/Beneficiario/Reportar — issue fica com placeholders vazios
 - (v2) Passar `labelIds` junto com `templateId` SEM incluir Type/* label correspondente — sobrescreve template label
 - (v2) Pular pergunta consolidada e fazer 5-6 perguntas separadas — Soul axioma 5
+- (v2.2) Criar branch com nome aleatorio (`fix-bug`, `feature-x`) sem IDENTIFIER — Linear nao linka, integracao quebra
+- (v2.2) **Hardcodar team key (IA, WFW, IAP) na branch/PR** — sempre derivar do `identifier` da issue (cada issue traz o team key correto via `viewer.assignedIssues[].identifier`)
+- (v2.2) Abrir PR sem `Closes {IDENTIFIER}` / `Fixes {IDENTIFIER}` no body — issue fica orfa, nao fecha no merge
+- (v2.2) Mover issue pra Done manualmente quando ja existe PR aberto — deixa o merge fazer (evita race condition Linear↔GitHub)

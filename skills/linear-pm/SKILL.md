@@ -38,45 +38,14 @@ Initiative (estrategico, ex: "Performar SGI & Agrino")
 - Auth: `Authorization: {LINEAR_API_KEY}`
 - Metodo: POST com body JSON `{"query": "...", "variables": {...}}`
 
-### Teams Impeto
-| Team | ID | Key | Uso |
-|------|----|-----|-----|
-| Impeto AI Core | `55aebf79-3615-4c29-8612-a6d415be4bdc` | IA | Projetos proprios e clientes |
-| Workflow | `23b3fdd3-3087-4c00-b650-ad3435d24252` | WFW | Projetos Workflow |
-| Impeto AI Partners | `c399b23d-f3dc-443a-ba92-43ffd7faad91` | IAP | Parcerias / Innovagro |
+### Teams, Templates e Labels
 
-### Templates do Workspace (v2)
+Single source of truth pra IDs:
+- **Teams:** [`../_linear-shared/teams.md`](../_linear-shared/teams.md)
+- **Templates (7 issue + 2 project) + Type/* labels:** [`../_linear-shared/templates.md`](../_linear-shared/templates.md)
+- **Workflow state IDs por team:** [`../_linear-shared/state-ids.md`](../_linear-shared/state-ids.md)
 
-**Issue templates (workspace, todos teams herdam):**
-
-| Template | ID | Type/* | Priority |
-|----------|----|----|----|
-| Feature | `e682d84c-1e1c-40e7-bdd6-19853c4a577f` | Type/Feature | 3 |
-| Bug | `7c547bce-b64b-46ef-8e76-80ca5b234637` | Type/Bug | 2 |
-| Hotfix | `8357bb00-4618-4474-9351-5a95c47d572e` | Type/Hotfix | 1 |
-| Refactor | `85878d0f-b983-4ce7-9662-b15546c0494f` | Type/Refactor | 4 |
-| Spike | `f9c21b5c-6a74-4b53-a4cb-94fa038e3219` | Type/Spike | 3 |
-| Report | `bc934845-83d0-4b7d-b613-8b64425498b7` | Type/Report | 3 |
-| Knowledge | `3ca2d511-8c86-432a-b374-2daef63f15ce` | Type/Knowledge | 4 |
-
-**Project templates (workspace, type=project):**
-
-| Template | ID | Use case |
-|----------|----|----------|
-| Software Development | `2cfa380e-7552-4eee-b50f-a56a960054e2` | Codigo tradicional (Next.js, FastAPI, Supabase, dashboards) |
-| AI Development | `e4265043-9517-455c-8866-837f01404adc` | Agentes AI / LLM / Pydantic AI / multi-provider |
-
-**Type/* label IDs (usar junto com templateId em issueCreate):**
-
-| Label | ID |
-|-------|----|
-| Type/Feature | `d046098f-3937-4a28-bf19-57082d9bff71` |
-| Type/Bug | `0fab8687-157d-4d07-bddc-f68a3f1fd887` |
-| Type/Hotfix | `e05992d5-f5ae-45e6-8f2f-27ab187157b3` |
-| Type/Refactor | `860bbe5a-c1d5-4104-bbe2-15c899f309db` |
-| Type/Spike | `dc6567c6-b5a8-4cb6-a742-1b078cc5e54f` |
-| Type/Report | `1018beba-b5d4-4a96-8766-d6f18c4c3df9` |
-| Type/Knowledge | `3a4669b3-4b92-4b0d-a37d-a5683c186463` |
+Carregar via Read sob demanda quando precisar dos IDs.
 
 ---
 
