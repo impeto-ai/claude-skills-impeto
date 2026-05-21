@@ -178,41 +178,14 @@ Com base no contexto carregado:
 
 ## Teams Impeto
 
-| Team | ID | Key |
-|------|----|-----|
-| Impeto AI Core | `55aebf79-3615-4c29-8612-a6d415be4bdc` | IA |
-| Workflow | `23b3fdd3-3087-4c00-b650-ad3435d24252` | WFW |
-| Impeto AI Partners | `c399b23d-f3dc-443a-ba92-43ffd7faad91` | IAP |
+## Referencias compartilhadas (IDs ao vivo)
 
-## Templates do Workspace (referencia rapida)
+Single source of truth pra todos os IDs do workspace:
+- **Teams (IA, WFW, IAP):** [`../_linear-shared/teams.md`](../_linear-shared/teams.md)
+- **Templates (7 issue + 2 project) + Type/* labels:** [`../_linear-shared/templates.md`](../_linear-shared/templates.md)
+- **Workflow state IDs por team:** [`../_linear-shared/state-ids.md`](../_linear-shared/state-ids.md)
 
-### Issue Templates (todos workspace, type=issue)
-| Template | ID | Type/* label aplicado | Priority default |
-|----------|----|----|----|
-| Feature | `e682d84c-1e1c-40e7-bdd6-19853c4a577f` | Type/Feature | 3 (Medium) |
-| Bug | `7c547bce-b64b-46ef-8e76-80ca5b234637` | Type/Bug | 2 (High) |
-| Hotfix | `8357bb00-4618-4474-9351-5a95c47d572e` | Type/Hotfix | 1 (Urgent) |
-| Refactor | `85878d0f-b983-4ce7-9662-b15546c0494f` | Type/Refactor | 4 (Low) |
-| Spike | `f9c21b5c-6a74-4b53-a4cb-94fa038e3219` | Type/Spike | 3 (Medium) |
-| Report | `bc934845-83d0-4b7d-b613-8b64425498b7` | Type/Report | 3 (Medium) |
-| Knowledge | `3ca2d511-8c86-432a-b374-2daef63f15ce` | Type/Knowledge | 4 (Low) |
-
-### Project Templates (workspace, type=project)
-| Template | ID | Milestones |
-|----------|----|----|
-| Software Development | `2cfa380e-7552-4eee-b50f-a56a960054e2` | M0 Discovery → M4 Quality+Launch |
-| AI Development | `e4265043-9517-455c-8866-837f01404adc` | M0 Use Case → M4 Quality+Production |
-
-### Type/* labels (parent: Type group `8e9ee646-bb27-413d-8e21-3272714203b5`)
-| Label | ID |
-|-------|----|
-| Type/Feature | `d046098f-3937-4a28-bf19-57082d9bff71` |
-| Type/Bug | `0fab8687-157d-4d07-bddc-f68a3f1fd887` |
-| Type/Hotfix | `e05992d5-f5ae-45e6-8f2f-27ab187157b3` |
-| Type/Refactor | `860bbe5a-c1d5-4104-bbe2-15c899f309db` |
-| Type/Spike | `dc6567c6-b5a8-4cb6-a742-1b078cc5e54f` |
-| Type/Report | `1018beba-b5d4-4a96-8766-d6f18c4c3df9` |
-| Type/Knowledge | `3a4669b3-4b92-4b0d-a37d-a5683c186463` |
+Esta skill (linear-init) ainda **consulta a API** no PASSO 2 pra refletir o estado vivo. Os arquivos `_linear-shared/` sao o cache canonico pra outras skills (pm/work) referenciarem sem precisar requery.
 
 ## Common Mistakes
 - Tentar operar sem API key (SEMPRE verificar primeiro)

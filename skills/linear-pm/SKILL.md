@@ -4,9 +4,11 @@ description: Use when creating, managing, or organizing tasks in Linear (v2 — 
 chain: none
 ---
 
-# Linear PM - Gestao de Projetos via API (v2 — templates)
+# Linear PM - Gestao de Projetos via API (v2.1 — templates + Solicitante no texto)
 
 Skill autonoma pra criar e gerenciar projetos, milestones, issues e sub-issues no Linear via GraphQL API. **v2:** issue templates obrigatorios (1 dos 7) + project templates (Software Dev / AI Dev) ao criar projeto + Reportar gate.
+
+> **v2.1 (2026-04-27):** removido o conceito de label `Source/<slug>`. O **solicitante** vai SEMPRE no texto do description (campo `**Solicitante:**` que o template ja traz). NAO crie labels `Source/*`.
 
 ## When to Use
 - Criar projeto novo no Linear (escolhe template Software Dev ou AI Dev)
@@ -36,45 +38,14 @@ Initiative (estrategico, ex: "Performar SGI & Agrino")
 - Auth: `Authorization: {LINEAR_API_KEY}`
 - Metodo: POST com body JSON `{"query": "...", "variables": {...}}`
 
-### Teams Impeto
-| Team | ID | Key | Uso |
-|------|----|-----|-----|
-| Impeto AI Core | `55aebf79-3615-4c29-8612-a6d415be4bdc` | IA | Projetos proprios e clientes |
-| Workflow | `23b3fdd3-3087-4c00-b650-ad3435d24252` | WFW | Projetos Workflow |
-| Impeto AI Partners | `c399b23d-f3dc-443a-ba92-43ffd7faad91` | IAP | Parcerias / Innovagro |
+### Teams, Templates e Labels
 
-### Templates do Workspace (v2)
+Single source of truth pra IDs:
+- **Teams:** [`../_linear-shared/teams.md`](../_linear-shared/teams.md)
+- **Templates (7 issue + 2 project) + Type/* labels:** [`../_linear-shared/templates.md`](../_linear-shared/templates.md)
+- **Workflow state IDs por team:** [`../_linear-shared/state-ids.md`](../_linear-shared/state-ids.md)
 
-**Issue templates (workspace, todos teams herdam):**
-
-| Template | ID | Type/* | Priority |
-|----------|----|----|----|
-| Feature | `e682d84c-1e1c-40e7-bdd6-19853c4a577f` | Type/Feature | 3 |
-| Bug | `7c547bce-b64b-46ef-8e76-80ca5b234637` | Type/Bug | 2 |
-| Hotfix | `8357bb00-4618-4474-9351-5a95c47d572e` | Type/Hotfix | 1 |
-| Refactor | `85878d0f-b983-4ce7-9662-b15546c0494f` | Type/Refactor | 4 |
-| Spike | `f9c21b5c-6a74-4b53-a4cb-94fa038e3219` | Type/Spike | 3 |
-| Report | `bc934845-83d0-4b7d-b613-8b64425498b7` | Type/Report | 3 |
-| Knowledge | `3ca2d511-8c86-432a-b374-2daef63f15ce` | Type/Knowledge | 4 |
-
-**Project templates (workspace, type=project):**
-
-| Template | ID | Use case |
-|----------|----|----------|
-| Software Development | `2cfa380e-7552-4eee-b50f-a56a960054e2` | Codigo tradicional (Next.js, FastAPI, Supabase, dashboards) |
-| AI Development | `e4265043-9517-455c-8866-837f01404adc` | Agentes AI / LLM / Pydantic AI / multi-provider |
-
-**Type/* label IDs (usar junto com templateId em issueCreate):**
-
-| Label | ID |
-|-------|----|
-| Type/Feature | `d046098f-3937-4a28-bf19-57082d9bff71` |
-| Type/Bug | `0fab8687-157d-4d07-bddc-f68a3f1fd887` |
-| Type/Hotfix | `e05992d5-f5ae-45e6-8f2f-27ab187157b3` |
-| Type/Refactor | `860bbe5a-c1d5-4104-bbe2-15c899f309db` |
-| Type/Spike | `dc6567c6-b5a8-4cb6-a742-1b078cc5e54f` |
-| Type/Report | `1018beba-b5d4-4a96-8766-d6f18c4c3df9` |
-| Type/Knowledge | `3a4669b3-4b92-4b0d-a37d-a5683c186463` |
+Carregar via Read sob demanda quando precisar dos IDs.
 
 ---
 
@@ -96,7 +67,7 @@ Initiative (estrategico, ex: "Performar SGI & Agrino")
 3. **Ao mover pra Review:** OBRIGATORIO comentario detalhado (ver secao Comentarios)
 4. **Tag Claude:** se task feita por Claude Code, OBRIGATORIO label `Claude` na issue
 5. **(v2) Taxonomia obrigatoria:** issue criada SEMPRE via `templateId` (1 dos 7) + Type/* label correspondente
-6. **(v2) Reportar gate:** SEMPRE perguntar "Reportar quando concluido?" antes de criar
+6. **(v2.1) Solicitante no texto:** SEMPRE preencher `**Solicitante:**` no description (campo do template). NAO criar label `Source/*`. Tambem perguntar "Reportar quando concluido?" e marcar checkbox `[x] Reportar` se sim.
 7. **(v2) State Ownership (foco IAP/Innovagro):**
    - Emanuel Montenegro = triagem (Backlog/Todo → In Progress)
    - Danilo Saraiva = review tecnico (In Progress → In Review)
@@ -281,8 +252,8 @@ Confirme/preencha:
 - Milestone: {listar do project}, ou nenhum?
 - Estimate (1/2/3/5/8/13): ?
 - Due date: ? (obrigatorio se Hotfix)
-- Solicitante / Beneficiario: @quem?
-- Reportar quando concluido? (s/n)
+- Solicitante / Beneficiario: nome (vai NO TEXTO do description, NAO em label)
+- Reportar quando concluido? (s/n) — checkbox no description
 - Atribuir a: viewer (default), ou outro?
 ```
 
@@ -301,8 +272,8 @@ mutation {
     assigneeId: "USER_ID"
     labelIds: [
       "<TYPE_LABEL_ID>",                    # OBRIGATORIO incluir Type/* do template
-      "<SOURCE_LABEL_ID>",                  # se Reportar=sim
       "<COMPONENT_LABEL_ID>"                # opcional
+      # NAO usar `Source/*` — descontinuado em v2.1
     ]
   }) {
     issue { id identifier title url }
@@ -317,31 +288,22 @@ mutation {
 - Solucao: SEMPRE incluir `<TYPE_LABEL_ID>` no array junto com extras.
 - Se nao precisa de extras, omitir `labelIds` (template aplica Type/* sozinho).
 
-**Reportar gate (pos-criacao se Reportar=sim):**
-1. Buscar/criar `Source/<slug>` label
-2. issueUpdate com novo description tendo `- [x] Reportar` (Linear re-converte ProseMirror)
+**Pos-criacao (SEMPRE):**
+
+Apos `issueCreate`, fazer `issueUpdate` pra preencher os campos do template no description:
+1. `**Solicitante:**` → nome (ex: `Clodoaldo`)
+2. `**Beneficiário:**` → cliente, time ou pessoa
+3. `- [ ] Reportar` → trocar pra `- [x] Reportar` SE Reportar=sim
 
 ```graphql
-# Buscar Source/<slug>
-{ issueLabels(filter: { name: { eq: "Source/<slug>" } }) { nodes { id } } }
-
-# Criar se nao existe
-mutation {
-  issueLabelCreate(input: {
-    name: "Source/<slug>"
-    color: "#f2994a"
-    description: "Source — dispara notificacao Discord/email no Done"
-  }) { issueLabel { id } }
-}
-
-# Patch description marcando Reportar=true
 mutation {
   issueUpdate(id: "ISSUE_ID", input: {
-    description: "{description COM `- [x] Reportar` no final}"
-    labelIds: ["TYPE_LABEL_ID", "SOURCE_LABEL_ID"]
-  }) { issue { identifier } }
+    description: "{description completo do template, com Solicitante/Beneficiario preenchidos e checkbox Reportar marcado se aplicavel}"
+  }) { issue { identifier description } }
 }
 ```
+
+> **NAO use `Source/<slug>` label.** Foi descontinuado em v2.1. Solicitante vai SOMENTE no texto do description. O webhook (n8n) usa apenas o checkbox `[x] Reportar` como sinal.
 
 ### 5. Criar Sub-issue
 
@@ -630,7 +592,7 @@ Antes de chamar `issueCreate`, garantir:
 | `templateId` | sim | 1 dos 7 IDs |
 | `<TYPE_LABEL_ID>` no labelIds | sim (se passar labelIds) | senao `templateId` aplica sozinho |
 | `dueDate` | sim se Hotfix | regra: Hotfix sem dueDate = recusa |
-| `Reportar?` perguntado ao user | **sim, sempre** | Source/* aplicada se Reportar=sim |
+| `Reportar?` perguntado ao user | **sim, sempre** | Checkbox `[x] Reportar` marcado no description se sim. NAO usar `Source/*` label. |
 | `projectMilestoneId` | recomendado | issue ficar orfa do milestone e perda |
 
 Antes de chamar `projectCreate`:
@@ -668,7 +630,9 @@ Antes de chamar `projectCreate`:
 - **Esquecer comentario detalhado** ao mover pra Review
 - **Sobrescrever labels** usando `labelIds` sem consultar existentes
 - **(v2) Criar issue sem `templateId`** — fora da disciplina v2, fora dos relatorios
-- **(v2) Esquecer pergunta "Reportar quando concluido?"** — webhook n8n nao notifica solicitante
+- **(v2) Esquecer pergunta "Reportar quando concluido?"** — webhook n8n nao dispara
+- **(v2.1) Criar label `Source/<slug>`** — descontinuado. Solicitante vai SO no texto do description
+- **(v2.1) Esquecer `issueUpdate` pos-criacao** preenchendo Solicitante/Beneficiario/Reportar — issue fica com placeholders vazios
 - **(v2) Passar `labelIds` junto com `templateId` SEM incluir Type/* correspondente** — sobrescreve template
 - **(v2) Criar projeto sem `templateId`** — perde os 5 milestones automaticos
 - **(v2) Fazer 5-6 perguntas separadas ao user** — Soul axioma 5: UMA pergunta consolidada
