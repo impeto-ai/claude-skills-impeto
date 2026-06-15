@@ -26,6 +26,9 @@ ESSENTIAL_SKILLS=(
   "linear-pm"
   "linear-work"
 
+  # Planning / Prep
+  "prep-semanal"
+
   # Dev Workflow
   "systematic-debugging"
   "clean-code"
