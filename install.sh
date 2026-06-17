@@ -63,6 +63,9 @@ ESSENTIAL_SKILLS=(
   # Brainstorming
   "brainstorming"
   "brainstorming-dev"
+
+  # Diagrams / Visual
+  "excalidraw-pro"
 )
 
 echo ""
